@@ -122,10 +122,14 @@ test('the band draws a keyed Raster, sized to bodyColumns x 4', async ($, on) =>
   mock.clock(on)
   const ui = await mount($)
   const raster = await ui.find({ type: 'Raster', key: 'band' })
-  expect(raster?.props.columns).toBe(80)
+  expect(raster?.props.columns).toBe(78) // 80 minus the 2-column pat button
   expect(raster?.props.rows).toBe(4)
   const narrow = await mount($, band({ bodyColumns: 30 }))
-  expect((await narrow.find({ type: 'Raster' }))?.props.columns).toBe(30)
+  expect((await narrow.find({ type: 'Raster' }))?.props.columns).toBe(28)
+  const tiny = await mount($, band({ bodyColumns: 6 }))
+  expect((await tiny.find({ type: 'Raster' }))?.props.columns).toBe(6) // too narrow for the button
+  expect((await tiny.findAll({ type: 'Button' })).length).toBe(0)
+  await tiny.unmount()
   await ui.unmount()
   await narrow.unmount()
 })
@@ -152,7 +156,7 @@ test('the timer blits while visible and stops when hidden', async ($, on) => {
   const ui = await mount($)
   await clock.advance(125 * 8)
   expect(blits.length).toBe(8)
-  expect(blits[0]).toMatchObject({ key: 'band', columns: 80, rows: 4 })
+  expect(blits[0]).toMatchObject({ key: 'band', columns: 78, rows: 4 })
   const first = blits[0].cells
   await clock.advance(125 * 40)
   expect(blits.some(b => b.cells !== first)).toBe(true)
@@ -166,7 +170,7 @@ test('the timer blits while visible and stops when hidden', async ($, on) => {
   await ui.unmount()
 })
 
-test('pressing the band shows a heart on the pet under it', async ($, on) => {
+test('the pat button beside the band hearts a pet, and nothing overlays the raster', async ($, on) => {
   const store = memoryStore(on, { roster: ROSTER })
   const clock = mock.clock(on)
   const blits: any[] = []
@@ -174,12 +178,13 @@ test('pressing the band shows a heart on the pet under it', async ($, on) => {
     blits.push(e)
     return { value: {} }
   })
-  const ui = await mount($, band({ bodyColumns: 12 }))
+  const ui = await mount($, band({ bodyColumns: 20 }))
   const buttons = await ui.findAll({ type: 'Button' })
-  expect(buttons.length).toBe(8) // 2 segments (8 + 4 columns) x 4 rows
+  expect(buttons.length).toBe(1)
   await clock.advance(125)
+  expect(blits[blits.length - 1].columns).toBe(18) // 20 minus the button's 2
   const before = blits[blits.length - 1].cells
-  await ui.press({ key: 'pat-0-0' })
+  await ui.press({ key: 'pat' })
   await clock.advance(125)
   expect(blits[blits.length - 1].cells).not.toBe(before)
   await ui.unmount()

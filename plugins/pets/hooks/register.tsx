@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { PetsPet, PetsSpecies } from '../types'
-import { BAND_ROWS, COLORS, SPRITE_W, getFrames, renderBand } from './render'
+import { BAND_ROWS, COLORS, getFrames, renderBand } from './render'
 import type { Placed, Pose } from './render'
 import { TICK_MS, makeRng, pat, spawn, step } from './sim'
 import type { Mode, PetRuntime } from './sim'
@@ -11,8 +11,10 @@ const MAX_PETS = 6
 const SLEEP_AFTER_TICKS = Math.round(120_000 / TICK_MS)
 /** After this many refused blits in a row the timer stops; the next render restarts it. */
 const MAX_DENIES = 16
-/** Width of one click target of the invisible press grid, in columns. */
-const PRESS_SEGMENT = 8
+/** Columns the pat button takes beside the band (a space and the heart). */
+const PAT_COLUMNS = 2
+/** Below this many body columns there is no room for the button. */
+const MIN_COLUMNS_FOR_PAT = 8
 const BAND_KEY = 'band'
 const POSES: readonly Pose[] = ['walk', 'run', 'sit', 'sleep']
 
@@ -66,6 +68,7 @@ let denies = 0
 let isTicking = false
 let isCommandRegistered = false
 let idCounter = 0
+let patTurn = 0
 
 const newId = () => `p${Date.now().toString(36)}${(idCounter++).toString(36)}${Math.floor(rng.next() * 1296).toString(36)}`
 
@@ -206,16 +209,13 @@ async function ensureCommand($: Dollar) {
   }
 }
 
-/** Hearts the pet whose sprite is nearest the center of press segment `column`. */
-function patNear(column: number, width: number) {
-  const center = column * PRESS_SEGMENT + width / 2
-  let best: { id: string; dist: number } | null = null
-  for (const [id, s] of sims) {
-    const dist = Math.abs(s.x + SPRITE_W / 2 - center)
-    if (dist <= SPRITE_W / 2 + width / 2 && (!best || dist < best.dist)) best = { id, dist }
-  }
+/** A press carries no column, so the button pats the next pet in rotation. */
+function patNext() {
   markActive()
-  if (best) sims.set(best.id, pat(sims.get(best.id)!))
+  const ids = [...sims.keys()]
+  if (ids.length === 0) return
+  const id = ids[patTurn++ % ids.length]!
+  sims.set(id, pat(sims.get(id)!))
 }
 
 /** A fresh start: `register` runs again on a hot reload (and once per test). */
@@ -231,6 +231,7 @@ function resetState() {
   denies = 0
   isTicking = false
   isCommandRegistered = false
+  patTurn = 0
 }
 
 export const register: Register = on => {
@@ -270,7 +271,9 @@ export const register: Register = on => {
       return next(e)
     }
 
-    const columns = Math.max(1, Math.min(512, Math.floor(e.props.bodyColumns)))
+    const total = Math.max(1, Math.min(512, Math.floor(e.props.bodyColumns)))
+    const hasPat = total >= MIN_COLUMNS_FOR_PAT
+    const columns = hasPat ? total - PAT_COLUMNS : total
     isWorking = e.props.isWorking
     if (isWorking) markActive()
     band = { requestId: e.requestId, columns }
@@ -278,26 +281,15 @@ export const register: Register = on => {
     ensureTimer($)
 
     const { Box, Button, Raster } = $.ui.resolve(e)
-    const segments = Math.ceil(columns / PRESS_SEGMENT)
-    const rows = Array.from({ length: BAND_ROWS }, (_, r) => r)
-    const cols = Array.from({ length: segments }, (_, c) => c)
 
     return (
-      <Box width={columns} height={BAND_ROWS}>
-        <Raster key={BAND_KEY} columns={columns} rows={BAND_ROWS} cells={compose() ?? ''} />
-        {/* Invisible press grid over the Raster (it has no onPress): a press pats the pet under it. */}
-        <Box position="absolute" top={0} left={0} width={columns} height={BAND_ROWS} flexDirection="column">
-          {rows.map(r => (
-            <Box key={`row-${r}`} flexDirection="row" width={columns}>
-              {cols.map(c => {
-                const w = Math.min(PRESS_SEGMENT, columns - c * PRESS_SEGMENT)
-                return (
-                  <Button key={`pat-${r}-${c}`} plain label={' '.repeat(w)} onPress={() => patNear(c, w)} />
-                )
-              })}
-            </Box>
-          ))}
-        </Box>
+      <Box width={total} height={BAND_ROWS} flexDirection="row">
+        <Raster key={BAND_KEY} columns={columns} rows={BAND_ROWS} cells={compose() ?? renderBand(columns, [])} />
+        {hasPat ? (
+          <Box width={PAT_COLUMNS} height={BAND_ROWS} marginLeft={1} justifyContent="flex-end" flexDirection="column">
+            <Button key="pat" plain label={'\u2665'} onPress={patNext} />
+          </Box>
+        ) : null}
       </Box>
     )
   })

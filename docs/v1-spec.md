@@ -8,7 +8,7 @@
   - Claude working (between `prompt.submit` and `turn.complete`): pets **run** (faster, run frames).
   - Waiting on the user: normal walk/sit wander.
   - No activity for 2+ minutes: pets **sleep** (sleep frame + small "z" pixels).
-- **Click to pet**: pressing a pet shows a heart above it for ~1.5s. Raster has no `onPress`, so use whatever the API allows (e.g. wrapping it in a pressable element, or per-pet buttons). If nothing works, fall back to `/pet pat [name]`.
+- **Click to pet**: a `♥` Button beside the band pats pets in turn (presses carry no coordinates, and nothing may draw over the Raster). `/pet pat [name]` targets one pet.
 - **Names**: each pet has a name, random from a built-in list or user-given.
 - **Color variants**: cat `orange | black | gray | white`, dog `brown | golden | black | white`.
 

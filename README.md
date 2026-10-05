@@ -9,4 +9,4 @@ Little pixel-art cats and dogs that wander above your Claude Code prompt. Inspir
 
 `/pet add <cat|dog> [color] [name]` · `/pet remove <name>` · `/pet list` · `/pet pat [name]` · `/pet hide` · `/pet show` · `/pet clear`
 
-Click a pet to pat it. Pets run while Claude works and nap when idle.
+Click the ♥ to pat a pet. Pets run while Claude works and nap when idle.

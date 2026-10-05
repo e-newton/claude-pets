@@ -6,5 +6,6 @@
     "name": "Eric Newton"
   },
   "repository": "https://github.com/e-newton/claude-pets",
+  "license": "MIT",
   "types": "./types/index.d.ts"
 }
