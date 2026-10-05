@@ -1,10 +1,13 @@
 {
   "name": "claude-pets",
-  "owner": { "name": "Eric Newton" },
+  "description": "Pixel-art pets for Claude Code",
+  "owner": {
+    "name": "Eric Newton"
+  },
   "plugins": [
     {
-      "name": "claude-pets",
-      "source": "./plugins/claude-pets",
+      "name": "pets",
+      "source": "./plugins/pets",
       "description": "Pixel-art cats and dogs that wander above your prompt"
     }
   ]

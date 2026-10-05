@@ -26,7 +26,7 @@
 - Tick about 8 fps with `$.clock.every`, repainting with `$.ui.blit` (no full redraw). Only tick while the band is visible and there is at least one pet.
 - When the band is hidden or there are no pets: `next(e)` (draw nothing).
 
-## Module layout (`plugins/claude-pets/hooks/`)
+## Module layout (`plugins/pets/hooks/`)
 - `sprites.ts`: pixel data + palettes. Pure, no `$`.
 - `render.ts`: composes pets into Raster `cells` (base64). Pure, no `$`.
 - `sim.ts`: per-tick pet behaviour (position, direction, pose, frame). Pure, seedable RNG.
