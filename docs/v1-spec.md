@@ -8,7 +8,7 @@
   - Claude working (between `prompt.submit` and `turn.complete`): pets **run** (faster, run frames).
   - Waiting on the user: normal walk/sit wander.
   - No activity for 2+ minutes: pets **sleep** (sleep frame + small "z" pixels).
-- **Click to pet**: a `♥` Button beside the band pats pets in turn (presses carry no coordinates, and nothing may draw over the Raster). `/pet pat [name]` targets one pet.
+- **Click to pet**: cut for now (presses carry no coordinates and the heart overlay looked off). `/pet pat [name]` remains.
 - **Names**: each pet has a name, random from a built-in list or user-given.
 - **Color variants**: cat `orange | black | gray | white`, dog `brown | golden | black | white`.
 

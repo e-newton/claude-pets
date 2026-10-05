@@ -11,10 +11,6 @@ const MAX_PETS = 6
 const SLEEP_AFTER_TICKS = Math.round(120_000 / TICK_MS)
 /** After this many refused blits in a row the timer stops; the next render restarts it. */
 const MAX_DENIES = 16
-/** Columns the pat button takes beside the band (a space and the heart). */
-const PAT_COLUMNS = 2
-/** Below this many body columns there is no room for the button. */
-const MIN_COLUMNS_FOR_PAT = 8
 const BAND_KEY = 'band'
 const POSES: readonly Pose[] = ['walk', 'run', 'sit', 'sleep']
 
@@ -68,7 +64,6 @@ let denies = 0
 let isTicking = false
 let isCommandRegistered = false
 let idCounter = 0
-let patTurn = 0
 
 const newId = () => `p${Date.now().toString(36)}${(idCounter++).toString(36)}${Math.floor(rng.next() * 1296).toString(36)}`
 
@@ -209,15 +204,6 @@ async function ensureCommand($: Dollar) {
   }
 }
 
-/** A press carries no column, so the button pats the next pet in rotation. */
-function patNext() {
-  markActive()
-  const ids = [...sims.keys()]
-  if (ids.length === 0) return
-  const id = ids[patTurn++ % ids.length]!
-  sims.set(id, pat(sims.get(id)!))
-}
-
 /** A fresh start: `register` runs again on a hot reload (and once per test). */
 function resetState() {
   timer?.cancel()
@@ -231,7 +217,6 @@ function resetState() {
   denies = 0
   isTicking = false
   isCommandRegistered = false
-  patTurn = 0
 }
 
 export const register: Register = on => {
@@ -271,25 +256,18 @@ export const register: Register = on => {
       return next(e)
     }
 
-    const total = Math.max(1, Math.min(512, Math.floor(e.props.bodyColumns)))
-    const hasPat = total >= MIN_COLUMNS_FOR_PAT
-    const columns = hasPat ? total - PAT_COLUMNS : total
+    const columns = Math.max(1, Math.min(512, Math.floor(e.props.bodyColumns)))
     isWorking = e.props.isWorking
     if (isWorking) markActive()
     band = { requestId: e.requestId, columns }
     syncSims(roster, columns)
     ensureTimer($)
 
-    const { Box, Button, Raster } = $.ui.resolve(e)
+    const { Box, Raster } = $.ui.resolve(e)
 
     return (
-      <Box width={total} height={BAND_ROWS} flexDirection="row">
+      <Box width={columns} height={BAND_ROWS}>
         <Raster key={BAND_KEY} columns={columns} rows={BAND_ROWS} cells={compose() ?? renderBand(columns, [])} />
-        {hasPat ? (
-          <Box width={PAT_COLUMNS} height={BAND_ROWS} marginLeft={1} justifyContent="flex-end" flexDirection="column">
-            <Button key="pat" plain label={'\u2665'} onPress={patNext} />
-          </Box>
-        ) : null}
       </Box>
     )
   })
