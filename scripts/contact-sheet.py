@@ -1,97 +1,165 @@
 #!/usr/bin/env python3
 """Render a PNG contact sheet of every species x color x pose (plus heart / zzz
-overlays) on a dark and a light background, going through the real renderBand.
+overlays) on a dark and a light background.
 
-  python3 scripts/contact-sheet.py [out.png] [scale] [label-filter,...]   e.g. 'cat orange,dog brown'
-CELLS=0-3 selects cell columns (walk 0-3, run 4-5, sit 6-7, sleep 8-9, heart 10-11, zzz 12-13)
+The pixels come from the real TypeScript renderer (`renderBand` in
+plugins/pets/hooks/render.ts), not from a Python port: this script compiles
+sprites.ts and render.ts with tsc, has node dump every cell as a grid of 0xRRGGBB
+values (None = transparent), and only does the PNG drawing itself. So the sheet shows
+exactly what the terminal gets, overlays included.
+
+  python3 scripts/contact-sheet.py [out.png] [scale] [label-filter,...]
+      e.g. python3 scripts/contact-sheet.py sheet.png 8 'cat orange,dog brown'
+  CELLS=0-3 selects which cells of each row to draw:
+      walk 0-3, run 4-5, sit 6-7, sleep 8-9, heart 10-11, zzz 12-13
 
 Needs node and `npx -y -p typescript tsc` (no PIL: the PNG is written by hand).
 """
-import json, os, struct, subprocess, sys, tempfile, zlib
+import json
+import os
+import struct
+import subprocess
+import sys
+import tempfile
+import zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = sys.argv[1] if len(sys.argv) > 1 else 'sheet.png'
-SCALE = int(sys.argv[2]) if len(sys.argv) > 2 else 8
-ONLY = sys.argv[3].split(',') if len(sys.argv) > 3 else None
+HOOKS_DIR = os.path.join(ROOT, 'plugins/pets/hooks')
 
-DUMP = r"""
-const { COLORS, getFrames } = require('./sprites')
+OUTPUT_PATH = sys.argv[1] if len(sys.argv) > 1 else 'sheet.png'
+SCALE = int(sys.argv[2]) if len(sys.argv) > 2 else 8  # screen pixels per art pixel
+LABEL_FILTER = sys.argv[3].split(',') if len(sys.argv) > 3 else None
+
+SPRITE_WIDTH = 20  # mirrors SPRITE_W in the TS; the cell slot is wider to leave a gap
+SPRITE_HEIGHT = 16  # mirrors SPRITE_H
+CELL_WIDTH = 26 * SCALE  # one sprite slot: SPRITE_WIDTH plus padding for overlays
+CELL_HEIGHT = SPRITE_HEIGHT * SCALE + SCALE
+DARK_BACKGROUND = (0x1d, 0x1e, 0x24)
+LIGHT_BACKGROUND = (0xf1, 0xf1, 0xee)
+
+# Node script run against the compiled TS: prints a JSON list of
+# {label, cells: [pixel grid, ...]}, where a pixel grid is a list of rows of
+# 0xRRGGBB-or-null, one pixel per entry (decoded back from the renderer's half-blocks).
+NODE_DUMP_SCRIPT = r"""
+const { COLORS, getFrames, SPRITE_W, BAND_ROWS } = require('./sprites')
 const { renderBand, decodeCells } = require('./render')
-const { SPRITE_W: SW, SPRITE_H: SH, BAND_ROWS: ROWS } = require('./sprites')
-const PAD = 3
-function pixels(frame, facingLeft, overlay) {
-  const cols = SW + PAD * 2
-  const cells = decodeCells(renderBand(cols, [{ frame, x: PAD, facingLeft, overlay }]))
-  const out = []
-  for (let r = 0; r < ROWS; r++) for (const half of [1, 2]) {
-    const row = []
-    for (let c = 0; c < cols; c++) {
-      const [cp, fg, bg] = cells[r * cols + c]
-      let v = null
-      if (half === 1) v = cp === 0x2580 ? fg : null
-      else v = cp === 0x2580 ? (bg === 0x01000000 ? null : bg) : cp === 0x2584 ? fg : null
-      row.push(v)
+const DEFAULT_COLOR = 0x01000000
+const UPPER_HALF_BLOCK = 0x2580
+const LOWER_HALF_BLOCK = 0x2584
+const PADDING = 3
+
+function renderedPixels(frame, facingLeft, overlay) {
+  const columns = SPRITE_W + PADDING * 2
+  const cells = decodeCells(renderBand(columns, [{ frame, x: PADDING, facingLeft, overlay }]))
+  const pixelRows = []
+  for (let cellRow = 0; cellRow < BAND_ROWS; cellRow++) {
+    for (const isUpperHalf of [true, false]) {
+      const pixelRow = []
+      for (let column = 0; column < columns; column++) {
+        const [codePoint, foreground, background] = cells[cellRow * columns + column]
+        let color = null
+        if (isUpperHalf) color = codePoint === UPPER_HALF_BLOCK ? foreground : null
+        else if (codePoint === UPPER_HALF_BLOCK) color = background === DEFAULT_COLOR ? null : background
+        else if (codePoint === LOWER_HALF_BLOCK) color = foreground
+        pixelRow.push(color)
+      }
+      pixelRows.push(pixelRow)
     }
-    out.push(row)
   }
-  return out
+  return pixelRows
 }
-const res = []
-for (const sp of ['cat', 'dog']) for (const color of COLORS[sp]) {
+
+const sheet = []
+for (const species of ['cat', 'dog']) for (const color of COLORS[species]) {
   const cells = []
   for (const pose of ['walk', 'run', 'sit', 'sleep'])
-    for (const f of getFrames(sp, color, pose)) cells.push(pixels(f, false, null))
-  const w = getFrames(sp, color, 'walk')[0], z = getFrames(sp, color, 'sleep')[0]
-  cells.push(pixels(w, false, 'heart'), pixels(w, true, 'heart'), pixels(z, false, 'zzz'), pixels(z, true, 'zzz'))
-  res.push({ label: sp + ' ' + color, cells })
+    for (const frame of getFrames(species, color, pose)) cells.push(renderedPixels(frame, false, null))
+  const walking = getFrames(species, color, 'walk')[0]
+  const sleeping = getFrames(species, color, 'sleep')[0]
+  cells.push(
+    renderedPixels(walking, false, 'heart'), renderedPixels(walking, true, 'heart'),
+    renderedPixels(sleeping, false, 'zzz'), renderedPixels(sleeping, true, 'zzz'),
+  )
+  sheet.push({ label: species + ' ' + color, cells })
 }
-console.log(JSON.stringify(res))
+console.log(JSON.stringify(sheet))
 """
 
-tmp = tempfile.mkdtemp()
-hooks = os.path.join(ROOT, 'plugins/pets/hooks')
-subprocess.run(['npx', '-y', '-p', 'typescript', 'tsc', '--module', 'commonjs', '--target', 'es2022',
-                '--skipLibCheck', '--strict', '--outDir', tmp,
-                os.path.join(hooks, 'sprites.ts'), os.path.join(hooks, 'render.ts')], check=True, cwd=ROOT)
-open(os.path.join(tmp, 'dump.js'), 'w').write(DUMP)
-data = json.loads(subprocess.run(['node', os.path.join(tmp, 'dump.js')], check=True, capture_output=True, text=True).stdout)
 
-CELLS = os.environ.get('CELLS')  # e.g. '0-3' or '6,7,8': only these cell columns
-if CELLS:
+def dump_sprite_cells():
+    """Compile the TS renderer and return its cells as a list of {label, cells}."""
+    build_dir = tempfile.mkdtemp()
+    subprocess.run(
+        ['npx', '-y', '-p', 'typescript', 'tsc', '--module', 'commonjs', '--target', 'es2022',
+         '--skipLibCheck', '--strict', '--outDir', build_dir,
+         os.path.join(HOOKS_DIR, 'sprites.ts'), os.path.join(HOOKS_DIR, 'render.ts')],
+        check=True, cwd=ROOT)
+    dump_path = os.path.join(build_dir, 'dump.js')
+    with open(dump_path, 'w') as dump_file:
+        dump_file.write(NODE_DUMP_SCRIPT)
+    result = subprocess.run(['node', dump_path], check=True, capture_output=True, text=True)
+    return json.loads(result.stdout)
+
+
+def select_cells(sheet, spec):
+    """Keep only the cells named by a spec like '0-3' or '6,7,8' (see CELLS in the docstring)."""
     keep = []
-    for part in CELLS.split(','):
-        a, _, b = part.partition('-')
-        keep += range(int(a), int(b or a) + 1)
-    for r in data: r['cells'] = [r['cells'][i] for i in keep]
-if ONLY: data = [r for r in data if r['label'] in ONLY]
-S = SCALE
-CW, CH = 26 * S, 16 * S + S
-BGS = [(0x1d, 0x1e, 0x24), (0xf1, 0xf1, 0xee)]
-ncells = len(data[0]['cells'])
-W = ncells * CW + S
-panel_h = len(data) * CH + S
-H = panel_h * 2
-buf = bytearray(W * H * 3)
-for p, bg in enumerate(BGS):
-    for y in range(panel_h):
-        o = (p * panel_h + y) * W * 3
-        buf[o:o + W * 3] = bytes(bg) * W
-    for ri, row in enumerate(data):
-        for ci, cell in enumerate(row['cells']):
-            for y, line in enumerate(cell):
-                for x, v in enumerate(line):
-                    if v is None: continue
-                    rgb = bytes(((v >> 16) & 255, (v >> 8) & 255, v & 255))
-                    X0 = S // 2 + ci * CW + x * S
-                    Y0 = p * panel_h + S // 2 + ri * CH + y * S
-                    for yy in range(S):
-                        o = ((Y0 + yy) * W + X0) * 3
-                        buf[o:o + S * 3] = rgb * S
+    for part in spec.split(','):
+        first, _, last = part.partition('-')
+        keep += range(int(first), int(last or first) + 1)
+    for row in sheet:
+        row['cells'] = [row['cells'][i] for i in keep]
 
-def chunk(t, d):
-    c = struct.pack('>I', len(d)) + t + d
-    return c + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
-raw = b''.join(b'\0' + bytes(buf[y * W * 3:(y + 1) * W * 3]) for y in range(H))
-png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', W, H, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw, 6)) + chunk(b'IEND', b'')
-open(OUT, 'wb').write(png)
-print('wrote', OUT, W, 'x', H)
+
+def draw_sheet(sheet):
+    """Paint the sheet twice (dark panel above, light panel below); returns (width, height, rgb bytes)."""
+    width = len(sheet[0]['cells']) * CELL_WIDTH + SCALE
+    panel_height = len(sheet) * CELL_HEIGHT + SCALE
+    height = panel_height * 2
+    rgb = bytearray(width * height * 3)
+    for panel, background in enumerate([DARK_BACKGROUND, LIGHT_BACKGROUND]):
+        for y in range(panel_height):
+            start = (panel * panel_height + y) * width * 3
+            rgb[start:start + width * 3] = bytes(background) * width
+        for row_index, row in enumerate(sheet):
+            for cell_index, cell in enumerate(row['cells']):
+                for y, pixel_row in enumerate(cell):
+                    for x, color in enumerate(pixel_row):
+                        if color is None:
+                            continue
+                        pixel = bytes(((color >> 16) & 255, (color >> 8) & 255, color & 255))
+                        left = SCALE // 2 + cell_index * CELL_WIDTH + x * SCALE
+                        top = panel * panel_height + SCALE // 2 + row_index * CELL_HEIGHT + y * SCALE
+                        for scaled_y in range(SCALE):
+                            start = ((top + scaled_y) * width + left) * 3
+                            rgb[start:start + SCALE * 3] = pixel * SCALE
+    return width, height, rgb
+
+
+def png_chunk(chunk_type, data):
+    chunk = struct.pack('>I', len(data)) + chunk_type + data
+    return chunk + struct.pack('>I', zlib.crc32(chunk_type + data) & 0xffffffff)
+
+
+def encode_png(width, height, rgb):
+    """A truecolor PNG; each scanline is prefixed with filter type 0 (none)."""
+    scanlines = b''.join(b'\0' + bytes(rgb[y * width * 3:(y + 1) * width * 3]) for y in range(height))
+    header = struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0)  # 8-bit RGB
+    return (b'\x89PNG\r\n\x1a\n' + png_chunk(b'IHDR', header)
+            + png_chunk(b'IDAT', zlib.compress(scanlines, 6)) + png_chunk(b'IEND', b''))
+
+
+def main():
+    sheet = dump_sprite_cells()
+    cell_spec = os.environ.get('CELLS')
+    if cell_spec:
+        select_cells(sheet, cell_spec)
+    if LABEL_FILTER:
+        sheet = [row for row in sheet if row['label'] in LABEL_FILTER]
+    width, height, rgb = draw_sheet(sheet)
+    with open(OUTPUT_PATH, 'wb') as out:
+        out.write(encode_png(width, height, rgb))
+    print('wrote', OUTPUT_PATH, width, 'x', height)
+
+
+main()

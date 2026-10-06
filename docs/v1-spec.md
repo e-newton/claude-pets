@@ -20,17 +20,23 @@
 
 ## Persistence
 - Roster `{ id, species, color, name }[]` and the hidden flag live in `$.store` (across sessions). New users start with one random cat.
-- Positions and animation state are runtime-only.
+- Animation state is runtime-only. Positions are also kept in `$.state` (session only) just so a hot reload does not teleport the pets.
 
 ## Animation
 - Tick about 8 fps with `$.clock.every`, repainting with `$.ui.blit` (no full redraw). Only tick while the band is visible and there is at least one pet.
 - When the band is hidden or there are no pets: `next(e)` (draw nothing).
 
 ## Module layout (`plugins/pets/hooks/`)
-- `sprites.ts`: pixel data + palettes. Pure, no `$`.
-- `render.ts`: composes pets into Raster `cells` (base64). Pure, no `$`.
+- `sprites.ts`: the public sprite API (`getFrames`, types, `COLORS`): paints the string grids with a palette and caches the frames. Pure, no `$`.
+- `palettes.ts`: named colour palettes per species and variant; in-between shades are derived from a few base colours.
+- `pixel-art.ts`: sprite size constants, `PIXEL_LEGEND` (which character of the art means which palette colour) and the helpers that build and stamp grids.
+- `legs.ts`: leg shapes and walk/run gaits shared by both species.
+- `cat.ts`, `dog.ts`: the pixel art of each species, by pose.
+- `render.ts`: composes pets into Raster `cells` (base64), with the heart / zzz overlays. Pure, no `$`.
 - `sim.ts`: per-tick pet behaviour (position, direction, pose, frame). Pure, seedable RNG.
-- `register.tsx`: hooks, commands, store, timer, reactions, click.
+- `register.tsx`: hooks, commands, store, timer, reactions. Module state lives in one `session` object that a reload replaces. Positions are saved to `$.state` (`positions`) about once a second so a hot reload resumes the pets where they were.
+
+Tests live in `plugins/pets/tests/`. `scripts/preview.ts` prints the frames in a terminal; `scripts/contact-sheet.py` writes a PNG of everything through the real renderer.
 
 ### Shared contract (`sprites.ts` / `render.ts` exports)
 ```ts

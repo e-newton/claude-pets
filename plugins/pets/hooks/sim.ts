@@ -21,6 +21,7 @@ export type PetRuntime = {
   frameTicks: number
 }
 
+/** A source of random numbers in [0, 1). */
 export type Rng = { next: () => number }
 
 export type StepContext = {
@@ -31,38 +32,53 @@ export type StepContext = {
   frameCounts: Readonly<Record<Pose, number>>
 }
 
+/** One simulation step and one repaint: about 8 frames per second. */
 export const TICK_MS = 125
 export const HEART_TICKS = 12
 export const RUN_SPEED = 1
+/** [min, max] of a random duration, in ticks. */
+type TickRange = readonly [min: number, max: number]
 /** How long a pet sits, in ticks (about 2 to 6 seconds). */
-const SIT_TICKS: [number, number] = [16, 48]
+const SIT_TICKS: TickRange = [16, 48]
 /** How long a pet walks before reconsidering, in ticks (about 2 to 8 seconds). */
-const WALK_TICKS: [number, number] = [16, 64]
+const WALK_TICKS: TickRange = [16, 64]
 /** Ticks between frame advances for each pose. */
 const FRAME_PERIOD: Record<Pose, number> = { walk: 4, run: 2, sit: 4, sleep: 6 }
 
+/** Chance per tick of turning around on a whim. Rare while running, so it doesn't look frantic. */
+const WALK_TURN_CHANCE = 0.015
+const RUN_TURN_CHANCE = 0.003
+/** Chance, when a walk ends, of sitting down instead of walking on. */
+const SIT_CHANCE = 0.4
+/** Chance of facing the other way when a new walk starts. */
+const REVERSE_ON_WALK_START_CHANCE = 0.3
+
 /** mulberry32: small, fast, seedable. */
 export function makeRng(seed: number): Rng {
-  let a = seed >>> 0
+  let counter = seed >>> 0
   return {
     next() {
-      a = (a + 0x6d2b79f5) >>> 0
-      let t = a
-      t = Math.imul(t ^ (t >>> 15), t | 1)
-      t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+      counter = (counter + 0x6d2b79f5) >>> 0
+      let mixed = counter
+      mixed = Math.imul(mixed ^ (mixed >>> 15), mixed | 1)
+      mixed ^= mixed + Math.imul(mixed ^ (mixed >>> 7), mixed | 61)
+      return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296
     },
   }
 }
 
-function between(rng: Rng, lo: number, hi: number): number {
-  return lo + rng.next() * (hi - lo)
+/** A random number in [min, max). */
+function between(rng: Rng, min: number, max: number): number {
+  return min + rng.next() * (max - min)
 }
 
-function ticksBetween(rng: Rng, [lo, hi]: [number, number]): number {
-  return Math.round(between(rng, lo, hi))
+function randomTicks(rng: Rng, [min, max]: TickRange): number {
+  return Math.round(between(rng, min, max))
 }
 
+const reverse = (dir: 1 | -1): 1 | -1 => (dir === 1 ? -1 : 1)
+
+/** The rightmost left-edge a pet can have in a band `width` columns wide. */
 export function maxX(width: number): number {
   return Math.max(0, width - SPRITE_W)
 }
@@ -75,7 +91,7 @@ export function spawn(rng: Rng, width: number, mode: Mode = 'idle'): PetRuntime 
     dir: rng.next() < 0.5 ? 1 : -1,
     pose,
     frameIndex: 0,
-    poseTicksLeft: pose === 'walk' ? ticksBetween(rng, WALK_TICKS) : 0,
+    poseTicksLeft: pose === 'walk' ? randomTicks(rng, WALK_TICKS) : 0,
     heartTicks: 0,
     speed: between(rng, 0.25, 0.5),
     frameTicks: 0,
@@ -83,66 +99,66 @@ export function spawn(rng: Rng, width: number, mode: Mode = 'idle'): PetRuntime 
 }
 
 /** Shows the heart. */
-export function pat(state: PetRuntime): PetRuntime {
-  return { ...state, heartTicks: HEART_TICKS }
+export function pat(pet: PetRuntime): PetRuntime {
+  return { ...pet, heartTicks: HEART_TICKS }
 }
 
-function enterPose(s: PetRuntime, pose: Pose, ticks: number): PetRuntime {
-  return { ...s, pose, poseTicksLeft: ticks, frameIndex: 0, frameTicks: 0 }
+function enterPose(pet: PetRuntime, pose: Pose, ticks: number): PetRuntime {
+  return { ...pet, pose, poseTicksLeft: ticks, frameIndex: 0, frameTicks: 0 }
 }
 
 /** One tick of behaviour. Returns the next state; the input is not mutated. */
-export function step(state: PetRuntime, ctx: StepContext, rng: Rng): PetRuntime {
-  let s: PetRuntime = { ...state, heartTicks: Math.max(0, state.heartTicks - 1) }
+export function step(previous: PetRuntime, context: StepContext, rng: Rng): PetRuntime {
+  let pet: PetRuntime = { ...previous, heartTicks: Math.max(0, previous.heartTicks - 1) }
 
   // The mode decides what the pose may be.
-  if (ctx.mode === 'sleeping') {
-    if (s.pose !== 'sleep') s = enterPose(s, 'sleep', 0)
-  } else if (ctx.mode === 'working') {
-    if (s.pose !== 'run') s = enterPose(s, 'run', 0)
-  } else if (s.pose === 'sleep' || s.pose === 'run') {
-    s = enterPose(s, 'walk', ticksBetween(rng, WALK_TICKS))
+  if (context.mode === 'sleeping') {
+    if (pet.pose !== 'sleep') pet = enterPose(pet, 'sleep', 0)
+  } else if (context.mode === 'working') {
+    if (pet.pose !== 'run') pet = enterPose(pet, 'run', 0)
+  } else if (pet.pose === 'sleep' || pet.pose === 'run') {
+    pet = enterPose(pet, 'walk', randomTicks(rng, WALK_TICKS))
   }
 
-  const limit = maxX(ctx.width)
+  const rightLimit = maxX(context.width)
 
-  if (s.pose === 'walk' || s.pose === 'run') {
-    const speed = s.pose === 'run' ? RUN_SPEED : s.speed
-    let x = s.x + s.dir * speed
-    let dir = s.dir
+  if (pet.pose === 'walk' || pet.pose === 'run') {
+    const speed = pet.pose === 'run' ? RUN_SPEED : pet.speed
+    let x = pet.x + pet.dir * speed
+    let dir = pet.dir
     if (x <= 0) {
       x = 0
       dir = 1
-    } else if (x >= limit) {
-      x = limit
+    } else if (x >= rightLimit) {
+      x = rightLimit
       dir = -1
     }
-    s = { ...s, x, dir }
-    // Occasionally turn around on a whim; rarely while running, so it doesn't look frantic.
-    if (rng.next() < (s.pose === 'run' ? 0.003 : 0.015)) s = { ...s, dir: s.dir === 1 ? -1 : 1 }
+    pet = { ...pet, x, dir }
+    if (rng.next() < (pet.pose === 'run' ? RUN_TURN_CHANCE : WALK_TURN_CHANCE)) pet = { ...pet, dir: reverse(pet.dir) }
   } else {
-    s = { ...s, x: Math.min(Math.max(0, s.x), limit) }
+    // Standing still, but a resize may have left the pet outside the band.
+    pet = { ...pet, x: Math.min(Math.max(0, pet.x), rightLimit) }
   }
 
   // Idle wandering: sit now and then, walk on afterwards.
-  if (ctx.mode === 'idle') {
-    if (s.poseTicksLeft > 0) s = { ...s, poseTicksLeft: s.poseTicksLeft - 1 }
-    if (s.poseTicksLeft === 0) {
-      s =
-        s.pose === 'walk' && rng.next() < 0.4
-          ? enterPose(s, 'sit', ticksBetween(rng, SIT_TICKS))
-          : enterPose(s, 'walk', ticksBetween(rng, WALK_TICKS))
-      if (s.pose === 'walk' && rng.next() < 0.3) s = { ...s, dir: s.dir === 1 ? -1 : 1 }
+  if (context.mode === 'idle') {
+    if (pet.poseTicksLeft > 0) pet = { ...pet, poseTicksLeft: pet.poseTicksLeft - 1 }
+    if (pet.poseTicksLeft === 0) {
+      pet =
+        pet.pose === 'walk' && rng.next() < SIT_CHANCE
+          ? enterPose(pet, 'sit', randomTicks(rng, SIT_TICKS))
+          : enterPose(pet, 'walk', randomTicks(rng, WALK_TICKS))
+      if (pet.pose === 'walk' && rng.next() < REVERSE_ON_WALK_START_CHANCE) pet = { ...pet, dir: reverse(pet.dir) }
     }
   }
 
   // Advance the animation frame.
-  const count = Math.max(1, ctx.frameCounts[s.pose] || 1)
-  let frameTicks = s.frameTicks + 1
-  let frameIndex = s.frameIndex
-  if (frameTicks >= FRAME_PERIOD[s.pose]) {
+  const frameCount = Math.max(1, context.frameCounts[pet.pose] || 1)
+  let frameTicks = pet.frameTicks + 1
+  let frameIndex = pet.frameIndex
+  if (frameTicks >= FRAME_PERIOD[pet.pose]) {
     frameTicks = 0
     frameIndex += 1
   }
-  return { ...s, frameTicks, frameIndex: frameIndex % count }
+  return { ...pet, frameTicks, frameIndex: frameIndex % frameCount }
 }
