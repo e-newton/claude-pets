@@ -1,5 +1,7 @@
 # claude-pets
 
+![Pets Gif Demo](docs/pets-demo.avif)
+
 Pixel-art cats and dogs that wander around above your Claude Code prompt. Inspired by [vscode-pets](https://github.com/tonybaloney/vscode-pets).
 
 ![Cats and dogs walking, sitting, sleeping and getting a pat](docs/preview.png)
