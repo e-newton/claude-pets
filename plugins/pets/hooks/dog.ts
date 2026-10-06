@@ -106,7 +106,7 @@ export const DOG_SIT: Grid[] = [0, 1].map(frameIndex =>
 const HEAD_SLEEP: Grid = [
   '..kuuuuk..',
   '.kddbbbbbk',
-  '.dddbeebbn',
+  '.dddbccbbn',
   '.dddblllln',
   '..oo.llll.',
 ]

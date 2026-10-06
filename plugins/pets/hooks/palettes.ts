@@ -21,6 +21,8 @@ export type Palette = {
   dark: number
   eye: number
   eyeGlint: number
+  /** Shut-eye line (sleeping): the eye colour unless that is too bright to read as closed. */
+  closedEye: number
   nose: number
   /** Inner ear and tongue. */
   pink: number
@@ -55,6 +57,7 @@ function completePalette(spec: PaletteSpec): Palette {
     farLimb,
     farPaw: mixColors(farLimb, spec.outline, 0.4),
     mouth: mixColors(spec.outline, spec.dark, 0.5),
+    closedEye: spec.eye,
     ...spec,
   }
 }
@@ -70,7 +73,7 @@ const CAT_PALETTES: Record<string, Palette> = completeAll({
     outline: 0x0e0f14, body: 0x363948, light: 0x555a6e, dark: 0x242632,
     outlineLit: 0x7c829c, softCorner: 0x1c1e28, highlight: 0x4a4e62, shade: 0x2a2c38,
     farLimb: 0x2c2e3b, farPaw: 0x171821, mouth: 0x171821,
-    eye: 0xf2e04a, eyeGlint: 0xffffff, nose: 0xe8607e, pink: 0xb86a7c,
+    eye: 0xf2e04a, eyeGlint: 0xffffff, closedEye: 0x0e0f14, nose: 0xe8607e, pink: 0xb86a7c,
   },
   gray: { outline: 0x434955, body: 0x9aa1ad, light: 0xd0d5dd, dark: 0x757c89, eye: 0x1a1a22, eyeGlint: 0xffffff, nose: 0xe8607e, pink: 0xf0a8b4 },
   // White: stronger outline + real shade tones so it holds up on a light background.
@@ -88,7 +91,7 @@ const DOG_PALETTES: Record<string, Palette> = completeAll({
     outline: 0x0e0f14, body: 0x383b4a, light: 0x5a5f74, dark: 0x1f212b,
     outlineLit: 0x80869f, softCorner: 0x1c1e28, highlight: 0x4c5064, shade: 0x2b2d3a,
     farLimb: 0x2d2f3c, farPaw: 0x171821, mouth: 0x171821,
-    eye: 0xe8b030, eyeGlint: 0xfff2b0, nose: 0xc8ccd8, pink: 0xff6f86,
+    eye: 0xe8b030, eyeGlint: 0xfff2b0, closedEye: 0x0e0f14, nose: 0xc8ccd8, pink: 0xff6f86,
   },
   white: {
     outline: 0x646b84, body: 0xe9ebf3, light: 0xffffff, dark: 0xaeb4c8,

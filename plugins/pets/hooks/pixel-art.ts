@@ -25,6 +25,7 @@ export const PIXEL_LEGEND = {
   d: 'dark',
   e: 'eye',
   w: 'eyeGlint',
+  c: 'closedEye',
   n: 'nose',
   p: 'pink',
   s: 'shade',

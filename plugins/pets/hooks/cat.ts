@@ -110,8 +110,8 @@ const HEAD_SLEEP: Grid = [
   '.u....u.',
   'upo..opu',
   'ubbbbbbk',
-  'bbbbbebo',
-  'bbbbebeo',
+  'bbbbbcbo',
+  'bbbbcbco',
   'bbbllmmn',
   '.oooooo.',
 ]
