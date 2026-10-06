@@ -15,10 +15,11 @@ export const COLORS: { cat: readonly string[]; dog: readonly string[] } = {
 /** A frame: SPRITE_H rows x SPRITE_W px, each 0xRRGGBB or null (transparent). Faces RIGHT. */
 export type Frame = ReadonlyArray<ReadonlyArray<number | null>>
 
-// Palette keys: . transparent, o outline, b body, l light (muzzle / chest / paws),
-// d dark shade (belly, far legs, dog ear), e eye, w eye highlight, n nose,
-// p pink (inner ear / tongue), s belly / chest shade, f far-side limb, m mouth line
-// (s, f, m are derived from the base palette: see `withDerived`)
+// Palette keys: . transparent, o outline (dark, under side), u outline on the lit top
+// edge, k soft corner pixel (anti-alias), b body, h top highlight, l light (muzzle /
+// chest / paws), d dark shade (dog ear, back haunch), e eye, w eye highlight, n nose,
+// p pink (inner ear / tongue), s belly / chest shade, f far-side limb, g far paw,
+// m mouth line (u, k, h, s, f, g, m are derived: see `withDerived`)
 // Rows 0-2 of every frame are EMPTY: that headroom belongs to overlays.
 type Palette = { [k: string]: number }
 type Grid = readonly string[]
@@ -27,25 +28,32 @@ const mix = (a: number, b: number, t: number): number => {
   const ch = (sh: number) => Math.round(((a >> sh) & 255) * (1 - t) + ((b >> sh) & 255) * t)
   return (ch(16) << 16) | (ch(8) << 8) | ch(0)
 }
+// Raw palettes may override any derived key.
 const withDerived = (p: { [k: string]: number }): Palette => ({
-  ...p,
+  u: mix(p.o!, p.b!, 0.45),
+  k: mix(p.o!, p.b!, 0.7),
+  h: mix(p.b!, p.l!, 0.45),
   s: mix(p.b!, p.d!, 0.55),
-  f: mix(p.d!, p.o!, 0.25),
+  f: mix(p.b!, p.d!, 0.8),
+  g: mix(mix(p.b!, p.d!, 0.8), p.o!, 0.4),
   m: mix(p.o!, p.d!, 0.5),
+  ...p,
 })
 
 const CAT_PALETTES_RAW: { [color: string]: Palette } = {
   orange: { o: 0x7a3a12, b: 0xf0922c, l: 0xffd59a, d: 0xc86a1a, e: 0x1a1a22, w: 0xffffff, n: 0xe8607e, p: 0xf4a0a8 },
-  black: { o: 0x8d93a6, b: 0x2e3038, l: 0x50535e, d: 0x1f2026, e: 0xf2e04a, w: 0xffffff, n: 0xe8607e, p: 0xb86a7c },
+  // Black: a dark outline under a body that is only a little lighter, plus a cool rim light on the lit edge.
+  black: { o: 0x0e0f14, b: 0x363948, l: 0x555a6e, d: 0x242632, u: 0x7c829c, k: 0x1c1e28, h: 0x4a4e62, s: 0x2a2c38, f: 0x2c2e3b, g: 0x171821, m: 0x171821, e: 0xf2e04a, w: 0xffffff, n: 0xe8607e, p: 0xb86a7c },
   gray: { o: 0x434955, b: 0x9aa1ad, l: 0xd0d5dd, d: 0x757c89, e: 0x1a1a22, w: 0xffffff, n: 0xe8607e, p: 0xf0a8b4 },
-  white: { o: 0x7f8494, b: 0xf6f6f8, l: 0xffffff, d: 0xd2d4dc, e: 0x23305a, w: 0xffffff, n: 0xf0708c, p: 0xf8b4c0 },
+  // White: stronger outline + real shade tones so it holds up on a light background.
+  white: { o: 0x646b84, b: 0xe9ebf3, l: 0xffffff, d: 0xaeb4c8, s: 0xd0d4e2, f: 0xc0c5d6, g: 0x949ab0, e: 0x23305a, w: 0xffffff, n: 0xf0708c, p: 0xf8b4c0 },
 }
 
 const DOG_PALETTES_RAW: { [color: string]: Palette } = {
   brown: { o: 0x40240e, b: 0xa06c3c, l: 0xe0b684, d: 0x6a4020, e: 0x15151c, w: 0xffffff, n: 0x15151c, p: 0xff6f86 },
   golden: { o: 0x7e4e10, b: 0xe8b24c, l: 0xfae2a4, d: 0xb67c20, e: 0x15151c, w: 0xffffff, n: 0x15151c, p: 0xff6f86 },
-  black: { o: 0x8d93a6, b: 0x32343b, l: 0x585b66, d: 0x1c1d22, e: 0xe8b030, w: 0xfff2b0, n: 0xc8ccd8, p: 0xff6f86 },
-  white: { o: 0x7f8494, b: 0xf4f4f6, l: 0xffffff, d: 0xc4c6d0, e: 0x15151c, w: 0xffffff, n: 0x15151c, p: 0xff6f86 },
+  black: { o: 0x0e0f14, b: 0x383b4a, l: 0x5a5f74, d: 0x1f212b, u: 0x80869f, k: 0x1c1e28, h: 0x4c5064, s: 0x2b2d3a, f: 0x2d2f3c, g: 0x171821, m: 0x171821, e: 0xe8b030, w: 0xfff2b0, n: 0xc8ccd8, p: 0xff6f86 },
+  white: { o: 0x646b84, b: 0xe9ebf3, l: 0xffffff, d: 0xaeb4c8, s: 0xd0d4e2, f: 0xc0c5d6, g: 0x949ab0, e: 0x15151c, w: 0xffffff, n: 0x15151c, p: 0xff6f86 },
 }
 
 const CAT_PALETTES: { [color: string]: Palette } = mapValues(CAT_PALETTES_RAW, withDerived)
@@ -85,156 +93,238 @@ function compose(...pieces: (Piece | Piece[])[]): Grid {
   return A(g.map(r => r.join('')))
 }
 
-// A leg: near legs use the body color, far legs the dark 'f'. `xt` is the column of
-// its top row and `xb` of the rest (xb != xt shears it into a reaching step); `y` is
-// the top row (8 = standing; 7 = lifted one px) and `rows` its height (5 or 4).
-function leg(far: boolean, xt: number, xb: number, y = 8, rows = 5): Piece[] {
-  const shaft = rows - 2
-  const lines = far
-    ? [...Array<string>(shaft).fill('ff'), 'fo', 'oo']
-    : [...Array<string>(shaft).fill('obo'), 'olo', 'ooo']
-  return lines.map((line, i) => P(i === 0 ? xt : xb, y + i, [line]))
+// ---- Legs ----------------------------------------------------------------
+// A leg shape is a list of [dx, row] from the top down: 2 px of fill inside an outline,
+// a lighter paw that pokes forward, and a rounded bottom. Hind legs get a haunch that
+// swells one px backward. Far legs are the same shape in the muted far tone, no outline.
+type Shape = ReadonlyArray<readonly [number, string]>
+const STAND: Shape = [[0, 'obbo'], [0, 'obbo'], [0, 'obbo'], [0, 'obllo'], [1, '.ooo']]
+const REACH: Shape = [[0, 'obbo'], [0, 'obbo'], [1, 'obbo'], [2, 'obllo'], [3, '.ooo']]
+const PUSH: Shape = [[0, 'obbo'], [0, 'obbo'], [-1, 'obbo'], [-2, 'obllo'], [-1, '.ooo']]
+/** Knee up, paw tucked forward: 3 rows, so it hangs clear of the ground. */
+const SWING: Shape = [[0, 'obbo'], [1, 'obllo'], [1, '.ooo']]
+const STRIDE_F: Shape = [[0, 'obbo'], [1, 'obbo'], [2, 'obllo'], [3, '.ooo']]
+const STRIDE_B: Shape = [[0, 'obbo'], [-1, 'obbo'], [-2, 'obllo'], [-3, '.ooo']]
+
+const haunch = (s: Shape): Shape => s.map(([dx, r], i) => (i < 2 && r === 'obbo' ? ([dx - 1, 'obbbo'] as const) : ([dx, r] as const)))
+const far = (s: Shape): Shape =>
+  s.map(([dx, r], i) => [dx, i === s.length - 1 ? r.replace(/[ol]/g, 'g') : r.replace(/o/g, '.').replace(/[bl]/g, 'f')] as const)
+/** A row longer at the top: the dog's chest hangs deeper than its waist. */
+const longer = (s: Shape): Shape => [s[0]!, ...s]
+
+type LegSpec = [kind: 'F' | 'H', far: boolean, x: number, shape: Shape, y: number]
+function leg([kind, isFar, x, shape, y]: LegSpec): Piece[] {
+  let s = kind === 'H' ? haunch(shape) : shape
+  if (isFar) s = far(s)
+  return s.map(([dx, r], i) => P(x + dx, y + i, [r]))
 }
-type LegSpec = [far: boolean, xt: number, xb: number, y?: number, rows?: number]
-const legs = (specs: LegSpec[]): Piece[] =>
-  [...specs].sort((a, b) => Number(b[0]) - Number(a[0])).flatMap(s => leg(...s))
+/** Far legs go behind the torso, near legs over it (a leg top replaces the belly outline). */
+const withLegs = (specs: LegSpec[], tail: Piece, torso: Piece[]): Piece[] => [
+  tail,
+  ...specs.filter(s => s[1]).flatMap(leg),
+  ...torso,
+  ...specs.filter(s => !s[1]).flatMap(leg),
+]
+/** A gait: [near front, near hind, far front, far hind] shapes at body drop `dy`. */
+type Gait = [Shape, Shape, Shape, Shape]
+function catLegs(g: Gait, dy: number, xs: [number, number, number, number]): LegSpec[] {
+  return [['F', false, xs[0], g[0], 8 + dy], ['H', false, xs[1], g[1], 8 + dy], ['F', true, xs[2], g[2], 8 + dy], ['H', true, xs[3], g[3], 8 + dy]]
+}
+function dogLegs(g: Gait, dy: number, xs: [number, number, number, number]): LegSpec[] {
+  return [['F', false, xs[0], g[0], 8 + dy], ['H', false, xs[1], longer(g[1]), 7 + dy], ['F', true, xs[2], g[2], 8 + dy], ['H', true, xs[3], longer(g[3]), 7 + dy]]
+}
+const WALK_XS: [number, number, number, number] = [11, 3, 8, 6]
+// Four-beat walk, facing right. A foot's cycle is REACH (planted ahead) -> STAND (under the
+// body) -> PUSH (planted behind) -> SWING (lifted, carried forward): while planted it slides
+// LEFT relative to the body, which is what makes the body travel right. Do not reorder.
+const WALK_GAITS: Gait[] = [
+  [REACH, PUSH, PUSH, REACH],
+  [STAND, SWING, SWING, STAND],
+  [PUSH, REACH, REACH, PUSH],
+  [SWING, STAND, STAND, SWING],
+]
+const RUN_EXT: Gait = [STRIDE_F, STRIDE_B, STRIDE_F, STRIDE_B]
+const RUN_TUCK: Gait = [SWING, SWING, SWING, SWING]
 
 // ---------------------------------------------------------------------------
-// Cat: round head with pointed ears (pink insides), eye + highlight, pink nose,
-// cream muzzle; slim body; tail in an S curve.
+// Cat: round head with pointed ears (pink insides), 2x2 eye with a glint, pink
+// nose, cream muzzle; slim body with a gentle back arch and tucked belly; S tail.
 // ---------------------------------------------------------------------------
 const CAT_HEAD: Grid = [
-  R(1, 'o', 4, 'o'),
-  R('opo', 2, 'opo'),
-  'obbbbbbo',
-  'bbbbbwbo',
-  'bbbbbebo',
+  '.u....u.',
+  'upo..opu',
+  'ubbbbbbk',
+  'bbbbwebo',
+  'bbbbeebo',
   'bbbllmmn',
-  'loooooo.',
+  '.oooooo.',
 ]
 const CAT_BODY: Grid = [
-  R(5, 'ooooooo'),
-  R(4, 'obbbbbbb'),
-  R(3, 'obbbbbbbb'),
-  R(3, 'obbbbbbbb'),
-  R(3, 'o', 'ssssssss'),
-  R(4, 'ooooooooo'),
+  R(5, 'kuuuuk'),
+  R(3, 'ku', 'hhhh', 'bbbbbbbb'),
+  R(2, 'o', 'bbbbbbbbbbbb'),
+  R(2, 'o', 'bbbbbbbbbbbb'),
+  R(2, 'o', 'bbb', 'ssss', 'bbbbb'),
+  R(2, 'o', 'bbb', 'oooo', 'bbbbb'),
+  R(3, 'ooo', 4, 'ooooo'),
 ]
-const catTorso = (dy = 0): Piece[] => [P(0, 2 + dy, CAT_BODY), P(12, dy, CAT_HEAD)]
-const CAT_TAIL_A: Grid = [R(1, 'oo'), R('obbo'), R('obbo'), R('obo'), R('obo'), R('obbb'), R(1, 'ooo')]
-const CAT_TAIL_B: Grid = [R('obbo'), R('obbo'), R('obo'), R('obo'), R('obbb'), R(1, 'ooo')]
-const CAT_TAIL_RUN: Grid = [R(1, 'ooo'), R('obbb'), R(1, 'ooo')]
+const catTorso = (dy = 0): Piece[] => [P(0, 2 + dy, CAT_BODY), P(11, dy, CAT_HEAD)]
+const CAT_TAIL_A: Grid = [R(1, 'oo'), R('olbo'), R('obbo'), R('obbo'), R(1, 'obbo'), R(2, 'obbo')]
+const CAT_TAIL_B: Grid = [R(2, 'oo'), R(1, 'olbo'), R(1, 'obbo'), R('obbo'), R(1, 'obbo'), R(2, 'obbo')]
+const CAT_TAIL_RUN_A: Grid = [R(1, 'oooo'), R('olbbb'), R(1, 'oooo')]
+const CAT_TAIL_RUN_B: Grid = [R(0, 'oo'), R('olbbo'), R(1, 'obbbo'), R(2, 'ooo')]
 
-const CAT_WALK: Grid[] = [
-  compose(catTorso(), P(0, 0, CAT_TAIL_A), legs([[true, 9, 8], [false, 11, 13], [true, 8, 9], [false, 5, 3]])),
-  compose(catTorso(), P(0, 0, CAT_TAIL_B), legs([[true, 10, 10, 7], [false, 11, 11], [true, 7, 7], [false, 5, 5, 7]])),
-  compose(catTorso(), P(0, 0, CAT_TAIL_A), legs([[true, 12, 14], [false, 10, 8], [true, 5, 6], [false, 8, 6]])),
-  compose(catTorso(), P(0, 0, CAT_TAIL_B), legs([[true, 10, 10], [false, 11, 11, 7], [true, 7, 7, 7], [false, 5, 5]])),
-]
+const CAT_WALK: Grid[] = WALK_GAITS.map((g, i) =>
+  compose(withLegs(catLegs(g, 0, WALK_XS), P(0, 0, i % 2 ? CAT_TAIL_B : CAT_TAIL_A), catTorso())),
+)
 const CAT_RUN: Grid[] = [
-  compose(catTorso(1), P(0, 4, CAT_TAIL_RUN), legs([[true, 9, 11, 9, 4], [false, 10, 13, 9, 4], [true, 6, 4, 9, 4], [false, 5, 2, 9, 4]])),
-  compose(catTorso(1), P(0, 4, CAT_TAIL_RUN), legs([[true, 8, 8, 9, 4], [false, 9, 9, 9, 4], [true, 7, 7, 9, 4], [false, 6, 6, 9, 4]])),
+  compose(withLegs(catLegs(RUN_EXT, 1, [11, 6, 8, 8]), P(0, 4, CAT_TAIL_RUN_A), catTorso(1))),
+  compose(withLegs(catLegs(RUN_TUCK, 0, [10, 5, 7, 9]), P(0, 1, CAT_TAIL_RUN_B), catTorso(0))),
 ]
-const SIT_BODY: Grid = [
-  R(10, 'o'),
-  R(9, 'ob'),
-  R(8, 'obb'),
-  R(7, 'o', 'bbb', 'llll', 'o'),
-  R(6, 'o', 'bbbbb', 'obo', 'ff'),
-  R(4, 'oo', 'bbbbbb', 'obo', 'ff'),
-  R(3, 'o', 'bbbbbbbb', 'obo', 'ff'),
-  R(3, 'o', 'bbsss', 'lll', 'olo', 'fo'),
-  R(2, 'o'.repeat(15)),
+
+// ---- Cat sit ----
+// Upright and seen from the side: round haunch, narrow chest with a cream ruff, two front
+// legs (the far one muted), tail curling on the ground. Frame 2 blinks and flicks the tail.
+const CAT_SIT_BODY: Grid = [
+  R(10, 'kubbbllo'),
+  R(8, 'kuhbbbbllo'),
+  R(5, 'kuhbbbbbbbllo'),
+  R(3, 'kubbbbbbbbbbllo'),
+  R(2, 'kobbbbbbbbbbbllo'),
+  R(3, 'oooooooooo'),
 ]
+const THIGH: Grid = [R(7, 'hhh'), R(5, 's', 4, 's'), R(6, 'sssss')]
+const CAT_SIT_TAIL: Grid[] = [
+  [R(0, 'oo'), R(0, 'lbo'), R(0, 'obbo'), R(1, 'ooo')],
+  [R(), R(), R(0, 'ooo'), R(0, 'lbbo')],
+]
+const CAT_HEAD_BLINK: Grid = CAT_HEAD.map((r, i) => (i === 3 ? 'bbbbbbbo' : r))
 const CAT_SIT: Grid[] = [0, 1].map(i =>
   compose(
-    P(0, 4, SIT_BODY),
-    P(0, 10, i ? [R('oo'), R('obb')] : [R(1, 'o'), R('obb')]),
-    P(11, 0, CAT_HEAD),
+    i ? P(0, 10, CAT_SIT_TAIL[1]!) : P(0, 9, CAT_SIT_TAIL[0]!),
+    P(0, 7, CAT_SIT_BODY),
+    P(4, 9, THIGH),
+    leg(['F', true, 11, STAND, 8]),
+    P(11, 0, i ? CAT_HEAD_BLINK : CAT_HEAD),
+    leg(['F', false, 14, STAND, 8]),
   ),
 )
-const CAT_HEAD_SLEEP: Grid = CAT_HEAD.map((r, i) => (i === 3 ? 'bbbbbbbo' : i === 4 ? 'bbbbeebo' : r))
-const CAT_CURL: Grid = [
-  R(6, 'oooooo'),
-  R(4, 'oo', 'bbbbbb', 'oo'),
-  R(3, 'o', 'bbbbbbbbbb', 'o'),
-  R(2, 'o', 'bbbbbbbbbbbb', 'o'),
-  R(1, 'o', 'bbbbbbbbbbbbbbb'),
-  R(1, 'o', 'bbbbbbbbbbbbbbb'),
-  R(1, 'o', 'bbbbbbbbbbbbbbb'),
-  R(1, 'o', 'oooooooooooooooo'),
-  R(1, 'o', 'bbbbbbbbbbbbbbbb'),
-  R(2, 'o'.repeat(16)),
+
+// ---- Cat sleep ----
+// A dome with the tail wrapped round the front: its lighter tip peeks out past the chin.
+const CAT_HEAD_SLEEP: Grid = [
+  '.u....u.',
+  'upo..opu',
+  'ubbbbbbk',
+  'bbbbbebo',
+  'bbbbebeo',
+  'bbbllmmn',
+  '.oooooo.',
 ]
+const CAT_CURL: Grid = [
+  R(6, 'kuuuk'),
+  R(4, 'ku', 'hhhhhh', 'uk'),
+  R(2, 'ko', 'bbbbbbbbbbb'),
+  R(1, 'ko', 'bbbbbbbbbbbb'),
+  R(1, 'o', 'bbsssbbbbbbbbbb'),
+  R(1, 'o', 'bbbsssbbbbbbbbb'),
+  R(1, 'o', 'bbbbbbbbbbbbbbb'),
+]
+const CAT_TAIL_WRAP: Grid = [R(1, 'o', 'ddddddddddddd', 'bb', 'lll'), R(2, 'ooooooooooooooooo')]
 const CAT_SLEEP: Grid[] = [0, 1].map(i =>
-  compose(P(0, 3 + i, CAT_CURL.slice(i)), P(12, 5, CAT_HEAD_SLEEP), P(13, 12, [R('lllll')])),
+  compose(P(0, 4 + i, CAT_CURL.slice(i)), P(12, 4, CAT_HEAD_SLEEP), P(0, 11, CAT_TAIL_WRAP), P(19, 10, [R('l')])),
 )
 
 // ---------------------------------------------------------------------------
-// Dog: long snout with a dark nose and mouth line, floppy dark ear, deep chest,
-// tail that wags between high and low.
+// Dog: long snout with a dark nose and mouth line, floppy dark ear, deep chest
+// tapering to the waist, tail that wags between high and out.
 // ---------------------------------------------------------------------------
 const DOG_HEAD: Grid = [
-  R(3, 'ooooo'),
-  R(1, 'oddbbwbbo'),
-  R(1, 'dddbbebbn'),
-  R(1, 'dddblllln'),
-  R(2, 'odblllmm'),
-  R(4, 'ooooo'),
+  '...kuuuk..',
+  '.kddbbbbbk',
+  '.dddwebbbn',
+  '.dddeelllln',
+  '..odblllmm',
+  '...kooook.',
 ]
 const DOG_BODY: Grid = [
-  R(4, 'ooooooo'),
-  R(3, 'obbbbbbb'),
-  R(3, 'obbbbbbb'),
-  R(3, 'obbbbbbb'),
-  R(3, 'o', 'sssssss', 'lll'),
-  R(4, 'oooooooooo'),
+  R(7, 'kuuuuk'),
+  R(3, 'ku', 'hhhh', 'bbbbbbbbb'),
+  R(2, 'o', 'bbbbbbbbbbbb'),
+  R(2, 'o', 'bbbbbbbbbbbb'),
+  R(2, 'o', 'bbb', 'ssss', 'bbbbb'),
+  R(3, 'oooooo', 'bbblll'),
+  R(9, 'oooooo'),
 ]
 const dogTorso = (dy = 0): Piece[] => [P(0, 2 + dy, DOG_BODY), P(10, dy, DOG_HEAD)]
-const DOG_TAIL_UP: Grid = [R('oo'), R('obo'), R(1, 'obo'), R(1, 'obb')]
-const DOG_TAIL_DOWN: Grid = [R('oo'), R('obbb'), R(1, 'ooo')]
-const dogTail = (up: boolean, dy = 0): Piece => (up ? P(0, dy, DOG_TAIL_UP) : P(0, 3 + dy, DOG_TAIL_DOWN))
+const DOG_TAIL_UP: Grid = [R(1, 'oo'), R('olbo'), R('obbo'), R('obbo'), R(1, 'obbo')]
+const DOG_TAIL_OUT: Grid = [R(0, 'oo'), R('olbbo'), R('obbbo'), R(1, 'oooo')]
 
-const DOG_WALK: Grid[] = [
-  compose(dogTorso(), dogTail(true), legs([[true, 9, 8], [false, 11, 13], [true, 8, 9], [false, 5, 3]])),
-  compose(dogTorso(), dogTail(false), legs([[true, 10, 10, 7], [false, 11, 11], [true, 7, 7], [false, 5, 5, 7]])),
-  compose(dogTorso(), dogTail(true), legs([[true, 12, 14], [false, 10, 8], [true, 5, 6], [false, 8, 6]])),
-  compose(dogTorso(), dogTail(false), legs([[true, 10, 10], [false, 11, 11, 7], [true, 7, 7, 7], [false, 5, 5]])),
-]
+const DOG_WALK: Grid[] = WALK_GAITS.map((g, i) =>
+  compose(withLegs(dogLegs(g, 0, WALK_XS), i % 2 ? P(0, 4, DOG_TAIL_OUT) : P(0, 0, DOG_TAIL_UP), dogTorso())),
+)
 const DOG_RUN: Grid[] = [
-  compose(dogTorso(1), dogTail(false, 1), legs([[true, 9, 11, 9, 4], [false, 10, 13, 9, 4], [true, 6, 4, 9, 4], [false, 5, 2, 9, 4]])),
-  compose(dogTorso(1), dogTail(true, 1), legs([[true, 8, 8, 9, 4], [false, 9, 9, 9, 4], [true, 7, 7, 9, 4], [false, 6, 6, 9, 4]])),
+  compose(withLegs(dogLegs(RUN_EXT, 1, [11, 6, 8, 8]), P(0, 5, DOG_TAIL_OUT), dogTorso(1))),
+  compose(withLegs(dogLegs(RUN_TUCK, 0, [10, 5, 7, 9]), P(0, 1, DOG_TAIL_UP), dogTorso(0))),
+]
+
+// ---- Dog sit ----
+const DOG_HEAD_BIG: Grid = [
+  '...kuuuuk..',
+  '.kddbbbbbbk',
+  '.dddbwebbbn',
+  '.dddbeellln',
+  '.dddbblllmm',
+  '...kbbbbbok',
+  '....kooook.',
 ]
 const DOG_SIT_BODY: Grid = [
-  R(9, 'obbb'),
-  R(9, 'obbbb'),
-  R(8, 'obb', 'llll', 'o'),
-  R(7, 'oo', 'bbb', 'obo', 'ff'),
-  R(5, 'oo', 'bbbbb', 'obo', 'ff'),
-  R(3, 'oo', 'bbsssbb', 'obo', 'ff'),
-  R(3, 'o', 'bbbssbbb', 'obo', 'ff'),
-  R(3, 'o', 'bbsss', 'lll', 'olo', 'fo'),
-  R(2, 'o'.repeat(15)),
+  R(9, 'kubblllo'),
+  R(8, 'kuhbbblllo'),
+  R(5, 'kuhbbbbbbblllo'),
+  R(3, 'kubbbbbbbbbbblllo'),
+  R(2, 'kobbbbbbbbbbbblllo'),
+  R(3, 'oooooooooo'),
 ]
-const DOG_SIT: Grid[] = [true, false].map(up =>
+const DOG_SIT_TAIL: Grid[] = [
+  [R(1, 'oo'), R('olbo'), R('obbo'), R('obbo'), R(1, 'obbo'), R(1, 'oooo')],
+  [R(), R(), R(), R(0, 'oo'), R('olbbo'), R(1, 'oooo')],
+]
+const DOG_SIT: Grid[] = [0, 1].map(i =>
   compose(
-    P(0, 4, DOG_SIT_BODY),
-    up ? P(0, 8, [R('oo'), R('obo'), R('obb')]) : P(0, 10, [R('oo'), R('obbb')]),
-    P(10, 0, DOG_HEAD),
+    i ? P(0, 7, DOG_SIT_TAIL[1]!) : P(0, 6, DOG_SIT_TAIL[0]!),
+    P(0, 7, DOG_SIT_BODY),
+    P(4, 9, THIGH),
+    leg(['F', true, 11, STAND, 8]),
+    P(9, 0, DOG_HEAD_BIG),
+    leg(['F', false, 14, STAND, 8]),
+    i ? P(17, 5, [R('p')]) : [],
   ),
 )
+
+// ---- Dog sleep ----
+const DOG_HEAD_SLEEP: Grid = [
+  '..kuuuuk..',
+  '.kddbbbbbk',
+  '.dddbeebbn',
+  '.dddblllln',
+  '..oo.llll.',
+]
 const DOG_SLEEP: Grid[] = [0, 1].map(i =>
   compose(
-    P(0, 6, [
-      R(3, 'oooooooo'),
-      R(2, 'o', 'bbbbbbbbb', 'o'),
-      R(1, 'o', 'bbbbbbbbbb', 'ooooooo'),
-      R(1, 'o', 'bbbssbbbbb', 'oddbbbbbo'),
-      R(1, 'o', 'bbsssssbbb', 'oddbbeebn'),
-      R(1, 'o', 'bbbbbbbbbb', 'oddblllmo'),
-      R(1, 'o'.repeat(18)),
+    P(0, 4, i
+      ? [R(3, 'kuuuuk'), R(1, 'ku', 'hhhhhh', 'uk'), R(0, 'ko', 'bbbbbbbbbk'), R(0, 'o', 'bbbbbbbbbbbk')]
+      : [R(), R(3, 'kuuuuk'), R(1, 'ku', 'hhhhhh', 'uk'), R(0, 'ko', 'bbbbbbbbbk')]),
+    P(0, 8, [
+      R(0, 'o', 'bbbbbbbbbbbbb'),
+      R(0, 'o', 'bbsssbbbbbbbbb'),
+      R(0, 'o', 'bsbbbsbbbbbbbb'),
+      i ? R(0, 'o', 'dddddddddbbb') : R(0, 'o', 'dddddddllbbb'),
+      R(0, 'oooooooooooo'),
     ]),
-    P(0, i ? 9 : 10, [R('oo')]),
+    i ? P(7, 10, [R('ll')]) : [],
+    P(10, 8, DOG_HEAD_SLEEP),
+    i ? P(11, 8, [R('dd')]) : [],
   ),
 )
 
