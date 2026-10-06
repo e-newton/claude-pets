@@ -1,10 +1,10 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { PetsPet, PetsSpecies } from '../types'
+import type { PetsPet, PetsPosition, PetsSpecies } from '../types'
 import { BAND_ROWS, COLORS, getFrames, renderBand } from './render'
 import type { Placed, Pose } from './render'
-import { TICK_MS, makeRng, pat, spawn, step } from './sim'
+import { TICK_MS, makeRng, maxX, pat, spawn, step } from './sim'
 import type { Mode, PetRuntime } from './sim'
 
 const MAX_PETS = 6
@@ -21,6 +21,9 @@ const NAMES = [
 ]
 
 const revision = atom({ plugin: 'pets', key: 'revision' } as const, 0)
+const savedPositions = atom({ plugin: 'pets', key: 'positions' } as const, {} as Record<string, PetsPosition>)
+/** How often pet positions are saved to `$.state`, in ticks (about once a second). */
+const SAVE_POSITIONS_EVERY_TICKS = 8
 
 const USAGE = [
   'Usage: /pet <command>',
@@ -60,6 +63,7 @@ let band: { requestId: string; columns: number } | null = null
 let timer: { cancel: () => void } | null = null
 let isWorking = false
 let idleTicks = 0
+let ticksSinceSave = 0
 let denies = 0
 let isTicking = false
 let isCommandRegistered = false
@@ -124,11 +128,25 @@ function frameCounts(pet: PetsPet): Record<Pose, number> {
   return counts
 }
 
-/** Keeps one runtime state per roster pet; new pets appear at a random x. */
-function syncSims(roster: readonly PetsPet[], columns: number) {
+/**
+ * Keeps one runtime state per roster pet. A pet with a saved position (from before a
+ * hot reload) resumes there; a new pet appears at a random x.
+ */
+function syncSims(roster: readonly PetsPet[], columns: number, saved: Record<string, PetsPosition> = {}) {
   const ids = new Set(roster.map(p => p.id))
   for (const id of [...sims.keys()]) if (!ids.has(id)) sims.delete(id)
-  for (const pet of roster) if (!sims.has(pet.id)) sims.set(pet.id, spawn(rng, columns, mode()))
+  for (const pet of roster) {
+    if (sims.has(pet.id)) continue
+    const fresh = spawn(rng, columns, mode())
+    const position = saved[pet.id]
+    sims.set(pet.id, position ? { ...fresh, x: Math.min(position.x, maxX(columns)), dir: position.dir } : fresh)
+  }
+}
+
+async function savePositions($: Dollar) {
+  const positions: Record<string, PetsPosition> = {}
+  for (const [id, sim] of sims) positions[id] = { x: sim.x, dir: sim.dir }
+  await update($, savedPositions, () => positions)
 }
 
 function compose(): string | null {
@@ -160,6 +178,11 @@ async function tick($: Dollar) {
     for (const pet of current.roster) {
       const s = sims.get(pet.id) ?? spawn(rng, band.columns, m)
       sims.set(pet.id, step(s, { width: band.columns, mode: m, frameCounts: frameCounts(pet) }, rng))
+    }
+    ticksSinceSave += 1
+    if (ticksSinceSave >= SAVE_POSITIONS_EVERY_TICKS) {
+      ticksSinceSave = 0
+      await savePositions($)
     }
     const cells = compose()
     if (cells === null) return
@@ -214,6 +237,7 @@ function resetState() {
   band = null
   isWorking = false
   idleTicks = 0
+  ticksSinceSave = 0
   denies = 0
   isTicking = false
   isCommandRegistered = false
@@ -260,7 +284,8 @@ export const register: Register = on => {
     isWorking = e.props.isWorking
     if (isWorking) markActive()
     band = { requestId: e.requestId, columns }
-    syncSims(roster, columns)
+    // Only a fresh load (no pets placed yet) needs the saved positions.
+    syncSims(roster, columns, sims.size === 0 ? await read($, savedPositions) : {})
     ensureTimer($)
 
     const { Box, Raster } = $.ui.resolve(e)

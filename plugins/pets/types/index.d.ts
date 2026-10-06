@@ -3,7 +3,7 @@
 
 export type PetsSpecies = 'cat' | 'dog'
 
-/** One pet of the roster. Positions and animation are runtime-only and not kept. */
+/** One pet of the roster. Positions are kept for the session only (see `positions`). */
 export type PetsPet = {
   id: string
   species: PetsSpecies
@@ -21,11 +21,19 @@ export type PetsStore = {
   hidden: boolean
 }
 
+/** A pet's place in the band, saved to `$.state` about once a second. */
+export type PetsPosition = {
+  x: number
+  dir: 1 | -1
+}
+
 declare module 'claude-code' {
   interface PluginState {
     'pets': {
       /** Bumped whenever the roster or the hidden flag changes: the band reads it and redraws. */
       revision: number
+      /** Where each pet was, by pet id, so a hot reload doesn't teleport them. */
+      positions: Record<string, PetsPosition>
     }
   }
 }

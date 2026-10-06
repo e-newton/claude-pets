@@ -39,7 +39,7 @@ const SIT_TICKS: [number, number] = [16, 48]
 /** How long a pet walks before reconsidering, in ticks (about 2 to 8 seconds). */
 const WALK_TICKS: [number, number] = [16, 64]
 /** Ticks between frame advances for each pose. */
-const FRAME_PERIOD: Record<Pose, number> = { walk: 4, run: 1, sit: 4, sleep: 6 }
+const FRAME_PERIOD: Record<Pose, number> = { walk: 4, run: 2, sit: 4, sleep: 6 }
 
 /** mulberry32: small, fast, seedable. */
 export function makeRng(seed: number): Rng {
@@ -118,8 +118,8 @@ export function step(state: PetRuntime, ctx: StepContext, rng: Rng): PetRuntime 
       dir = -1
     }
     s = { ...s, x, dir }
-    // Occasionally turn around on a whim.
-    if (rng.next() < (s.pose === 'run' ? 0.01 : 0.015)) s = { ...s, dir: s.dir === 1 ? -1 : 1 }
+    // Occasionally turn around on a whim; rarely while running, so it doesn't look frantic.
+    if (rng.next() < (s.pose === 'run' ? 0.003 : 0.015)) s = { ...s, dir: s.dir === 1 ? -1 : 1 }
   } else {
     s = { ...s, x: Math.min(Math.max(0, s.x), limit) }
   }
