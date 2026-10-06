@@ -29,7 +29,7 @@ export type PetsPosition = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'pets': {
+    pets: {
       /** Bumped whenever the roster or the hidden flag changes: the band reads it and redraws. */
       revision: number
       /** Where each pet was, by pet id, so a hot reload doesn't teleport them. */

@@ -1,6 +1,7 @@
 // Per-tick pet behaviour. Pure: no `$`, no clock; randomness comes from a seedable RNG.
-import { SPRITE_W } from './sprites'
+
 import type { Pose } from './sprites'
+import { SPRITE_W } from './sprites'
 
 export type Mode = 'working' | 'idle' | 'sleeping'
 

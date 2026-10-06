@@ -1,10 +1,11 @@
 // Dev-only: prints every species/color/pose frame with ANSI truecolor half-blocks,
 // rendered through the real renderer.
 //   npx tsx scripts/preview.ts [cat|dog] [color] [pose]
-import { DEFAULT_COLOR, decodeCells, renderBand } from '../plugins/pets/hooks/render'
+
 import type { Overlay } from '../plugins/pets/hooks/render'
-import { COLORS, SPRITE_H, SPRITE_W, getFrames } from '../plugins/pets/hooks/sprites'
+import { DEFAULT_COLOR, decodeCells, renderBand } from '../plugins/pets/hooks/render'
 import type { Pose, Species } from '../plugins/pets/hooks/sprites'
+import { COLORS, getFrames, SPRITE_H, SPRITE_W } from '../plugins/pets/hooks/sprites'
 
 const POSES: Pose[] = ['walk', 'run', 'sit', 'sleep']
 const [speciesFilter, colorFilter, poseFilter] = process.argv.slice(2)
@@ -22,7 +23,12 @@ function ansiCell(codePoint: number, foreground: number, background: number): st
 /** Renders frames side by side and returns the terminal lines. */
 function renderFrames(frames: ReturnType<typeof getFrames>, overlay: Overlay = null): string[] {
   const columns = frames.length * (SPRITE_W + GAP_BETWEEN_FRAMES)
-  const placed = frames.map((frame, i) => ({ frame, x: i * (SPRITE_W + GAP_BETWEEN_FRAMES), facingLeft: false, overlay }))
+  const placed = frames.map((frame, i) => ({
+    frame,
+    x: i * (SPRITE_W + GAP_BETWEEN_FRAMES),
+    facingLeft: false,
+    overlay,
+  }))
   const cells = decodeCells(renderBand(columns, placed))
   const lines: string[] = []
   for (let row = 0; row < SPRITE_H / 2; row++) {
@@ -48,7 +54,7 @@ for (const species of ['cat', 'dog'] as Species[]) {
     console.log(`${species} ${color} overlays (heart, zzz)`)
     const heartLines = renderFrames(getFrames(species, color, 'walk').slice(0, 1), 'heart')
     const zzzLines = renderFrames(getFrames(species, color, 'sleep').slice(0, 1), 'zzz')
-    console.log(heartLines.map((line, i) => line + '  ' + zzzLines[i]).join('\n'))
+    console.log(heartLines.map((line, i) => `${line}  ${zzzLines[i]}`).join('\n'))
     console.log()
   }
 }

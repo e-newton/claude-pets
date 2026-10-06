@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The Claude Code release used to validate and test the plugin. No login is needed for either.
+  CLAUDE_CODE_VERSION: 2.1.292
+  RUFF_VERSION: 0.16.10
+
+jobs:
+  lint:
+    name: Lint and format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Biome (TypeScript lint + format)
+        run: npx biome ci .
+      - name: Ruff (Python lint + format)
+        run: |
+          pipx run ruff==${RUFF_VERSION} check scripts
+          pipx run ruff==${RUFF_VERSION} format --check scripts
+
+  plugin:
+    name: Validate and test plugin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
+      - name: Validate manifests
+        run: |
+          claude plugin validate --strict .
+          claude plugin validate --strict plugins/pets
+      - name: Run tests
+        run: claude plugin test plugins/pets

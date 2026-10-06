@@ -8,8 +8,8 @@
 // is the foreground of '▀', the lower one is its background (or the foreground of '▄'
 // when the upper pixel is clear).
 
-import { BAND_ROWS, SPRITE_H, SPRITE_W } from './sprites'
 import type { Frame } from './sprites'
+import { BAND_ROWS, SPRITE_H, SPRITE_W } from './sprites'
 
 export type Overlay = 'heart' | 'zzz' | null
 export type Placed = { frame: Frame; x: number; facingLeft: boolean; overlay: Overlay }
@@ -118,8 +118,11 @@ const HEAD_SCAN_WIDTH = 5
 function headTopRow(frame: Frame, facingLeft: boolean): number {
   const firstColumn = facingLeft ? 0 : SPRITE_W - HEAD_SCAN_WIDTH
   const lastColumn = facingLeft ? HEAD_SCAN_WIDTH - 1 : SPRITE_W - 1
-  for (let y = 0; y < SPRITE_H; y++)
-    for (let x = firstColumn; x <= lastColumn; x++) if (frame[y]?.[x] != null) return y
+  for (let y = 0; y < SPRITE_H; y++) {
+    for (let x = firstColumn; x <= lastColumn; x++) {
+      if (frame[y]?.[x] != null) return y
+    }
+  }
   return SPRITE_H
 }
 
@@ -133,8 +136,13 @@ type PlotPixel = (x: number, y: number, color: number) => void
  * leaves that pixel empty, so the pet's art always stays whole and readable.
  */
 function paintBitmap(
-  bitmap: readonly string[], frame: Frame, spriteX: number, column: number, top: number,
-  colors: Record<string, number>, plot: PlotPixel,
+  bitmap: readonly string[],
+  frame: Frame,
+  spriteX: number,
+  column: number,
+  top: number,
+  colors: Record<string, number>,
+  plot: PlotPixel,
 ) {
   bitmap.forEach((line, y) => {
     for (let x = 0; x < line.length; x++) {
@@ -159,7 +167,9 @@ function paintSleepZs(frame: Frame, facingLeft: boolean, spriteX: number, plot: 
 
   /** Whether every pixel of the bitmap lands inside the sprite box on a free pixel. */
   const fitsOnFreePixels = (bitmap: string[], column: number, top: number) =>
-    column >= 0 && column + bitmap[0]!.length <= SPRITE_W && top >= 0 &&
+    column >= 0 &&
+    column + bitmap[0]!.length <= SPRITE_W &&
+    top >= 0 &&
     bitmap.every((line, y) => [...line].every((ch, x) => ch !== '#' || frame[top + y]?.[column + x] == null))
 
   // Both letters must render whole: the big Z rises above the head (pushed down, not clipped,
@@ -198,11 +208,17 @@ function encodeCells(pixels: Int32Array, width: number): string {
       const lower = pixels[(2 * cellRow + 1) * width + column]!
       if (upper !== UNPAINTED) {
         // fg = upper pixel, bg = lower pixel (default bg when the lower pixel is clear)
-        writeWord(UPPER_HALF_BLOCK); writeWord(upper); writeWord(lower === UNPAINTED ? DEFAULT_COLOR : lower)
+        writeWord(UPPER_HALF_BLOCK)
+        writeWord(upper)
+        writeWord(lower === UNPAINTED ? DEFAULT_COLOR : lower)
       } else if (lower !== UNPAINTED) {
-        writeWord(LOWER_HALF_BLOCK); writeWord(lower); writeWord(DEFAULT_COLOR)
+        writeWord(LOWER_HALF_BLOCK)
+        writeWord(lower)
+        writeWord(DEFAULT_COLOR)
       } else {
-        writeWord(SPACE); writeWord(DEFAULT_COLOR); writeWord(DEFAULT_COLOR)
+        writeWord(SPACE)
+        writeWord(DEFAULT_COLOR)
+        writeWord(DEFAULT_COLOR)
       }
     }
   }

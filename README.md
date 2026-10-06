@@ -44,6 +44,22 @@ python3 scripts/contact-sheet.py sheet.png 6   # render every pet and pose to a 
 
 To try changes live, run `claude --plugin-dir plugins/pets`.
 
+### Linting and formatting
+
+TypeScript is linted and formatted with [Biome](https://biomejs.dev), and the Python script with [Ruff](https://docs.astral.sh/ruff/). The plugin itself has no dependencies. `package.json` only holds these dev tools.
+
+```
+npm install
+npm run lint        # Biome lint + format check
+npm run fix         # apply Biome fixes and formatting
+npm run typecheck   # tsc; needs the types Claude Code writes to plugins/pets/.claude-plugin/types/
+uvx ruff check scripts && uvx ruff format scripts
+```
+
+The pixel-art files (`cat.ts`, `dog.ts`, `legs.ts`, `palettes.ts`) are excluded from formatting so the hand-aligned grids keep their shape. They are still linted.
+
+CI (`.github/workflows/ci.yml`) runs Biome, Ruff, `claude plugin validate --strict` and `claude plugin test` on every push and pull request.
+
 ## License
 
 MIT

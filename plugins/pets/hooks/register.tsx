@@ -1,13 +1,13 @@
-import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
+import { atom, read, update } from 'claude-code'
 
 import type { PetsPet, PetsPosition, PetsSpecies, PetsStore } from '../types'
-import { renderBand } from './render'
 import type { Placed } from './render'
-import { BAND_ROWS, COLORS, getFrames } from './sprites'
-import type { Pose } from './sprites'
-import { TICK_MS, makeRng, maxX, pat, spawn, step } from './sim'
+import { renderBand } from './render'
 import type { Mode, PetRuntime } from './sim'
+import { makeRng, maxX, pat, spawn, step, TICK_MS } from './sim'
+import type { Pose } from './sprites'
+import { BAND_ROWS, COLORS, getFrames } from './sprites'
 
 type Engine = EngineInterface
 
@@ -23,6 +23,7 @@ const SAVE_POSITIONS_EVERY_TICKS = 8
 const BAND_KEY = 'band'
 const POSES: readonly Pose[] = ['walk', 'run', 'sit', 'sleep']
 
+// biome-ignore format: keep the name list compact
 const PET_NAMES = [
   'Mochi', 'Biscuit', 'Pumpkin', 'Waffles', 'Pickles', 'Noodle', 'Peanut', 'Muffin', 'Bean', 'Cookie',
   'Sprout', 'Maple', 'Olive', 'Pixel', 'Clover', 'Nugget', 'Pretzel', 'Truffle', 'Ziggy', 'Daisy',
@@ -101,7 +102,8 @@ let petIdCounter = 0
 // Small helpers
 // ---------------------------------------------------------------------------
 
-const pick = <T,>(items: readonly T[], unitRandom: number): T => items[Math.floor(unitRandom * items.length) % items.length]!
+const pick = <T,>(items: readonly T[], unitRandom: number): T =>
+  items[Math.floor(unitRandom * items.length) % items.length]!
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 const isSpecies = (text: string): text is PetsSpecies => text === 'cat' || text === 'dog'
 
@@ -264,7 +266,10 @@ async function tick($: Engine) {
     if (mode === 'idle') session.idleTicks += 1
     for (const pet of store.roster) {
       const runtime = session.runtimes.get(pet.id) ?? spawn(rng, band.columns, mode)
-      session.runtimes.set(pet.id, step(runtime, { width: band.columns, mode, frameCounts: countFramesByPose(pet) }, rng))
+      session.runtimes.set(
+        pet.id,
+        step(runtime, { width: band.columns, mode, frameCounts: countFramesByPose(pet) }, rng),
+      )
     }
     session.ticksSinceSavingPositions += 1
     if (session.ticksSinceSavingPositions >= SAVE_POSITIONS_EVERY_TICKS) {
@@ -322,10 +327,14 @@ async function runPetCommand($: Engine, argsText: string): Promise<{ text: strin
     case 'add': {
       const species = (args[0] ?? '').toLowerCase()
       if (!isSpecies(species)) {
-        return { text: `Add a cat or a dog: /pet add <cat|dog> [color] [name]\nCat colors: ${COLORS.cat.join(', ')}\nDog colors: ${COLORS.dog.join(', ')}` }
+        return {
+          text: `Add a cat or a dog: /pet add <cat|dog> [color] [name]\nCat colors: ${COLORS.cat.join(', ')}\nDog colors: ${COLORS.dog.join(', ')}`,
+        }
       }
       if (store.roster.length >= MAX_PETS) {
-        return { text: `You already have ${MAX_PETS} pets, which is the most that fit. Try /pet remove <name> first (${rosterNames()}).` }
+        return {
+          text: `You already have ${MAX_PETS} pets, which is the most that fit. Try /pet remove <name> first (${rosterNames()}).`,
+        }
       }
       let nameWords = args.slice(1)
       let color: string | undefined
@@ -334,7 +343,9 @@ async function runPetCommand($: Engine, argsText: string): Promise<{ text: strin
         color = firstWord
         nameWords = nameWords.slice(1)
       } else if (COLORS.cat.includes(firstWord) || COLORS.dog.includes(firstWord)) {
-        return { text: `${capitalize(species)}s do not come in ${firstWord}. ${capitalize(species)} colors: ${COLORS[species].join(', ')}` }
+        return {
+          text: `${capitalize(species)}s do not come in ${firstWord}. ${capitalize(species)} colors: ${COLORS[species].join(', ')}`,
+        }
       }
       const name = nameWords.join(' ').slice(0, MAX_PET_NAME_LENGTH).trim() || undefined
       const sameName = name ? findPet(name) : undefined
@@ -342,27 +353,37 @@ async function runPetCommand($: Engine, argsText: string): Promise<{ text: strin
       const pet = createPet(store.roster, species, color, name)
       await saveStore($, { ...store, roster: [...store.roster, pet] })
       return {
-        text: `Welcome, ${pet.name} the ${pet.color} ${pet.species}!` + (store.hidden ? ' (Pets are hidden: /pet show to see them.)' : ''),
+        text:
+          `Welcome, ${pet.name} the ${pet.color} ${pet.species}!` +
+          (store.hidden ? ' (Pets are hidden: /pet show to see them.)' : ''),
       }
     }
     case 'remove': {
-      if (args.length === 0) return { text: `Remove which pet? /pet remove <name>${store.roster.length ? ` (${rosterNames()})` : ''}` }
+      if (args.length === 0)
+        return { text: `Remove which pet? /pet remove <name>${store.roster.length ? ` (${rosterNames()})` : ''}` }
       const pet = findPet(args.join(' '))
-      if (!pet) return { text: `No pet named "${args.join(' ')}".${store.roster.length ? ` Your pets: ${rosterNames()}.` : ' You have no pets yet.'}` }
+      if (!pet)
+        return {
+          text: `No pet named "${args.join(' ')}".${store.roster.length ? ` Your pets: ${rosterNames()}.` : ' You have no pets yet.'}`,
+        }
       await saveStore($, { ...store, roster: store.roster.filter(other => other.id !== pet.id) })
       return { text: `Goodbye, ${pet.name}. They will be missed.` }
     }
     case 'clear': {
       if (store.roster.length === 0) return { text: 'You have no pets to clear.' }
       await saveStore($, { ...store, roster: [] })
-      return { text: `Cleared ${store.roster.length} pet${store.roster.length === 1 ? '' : 's'}. /pet add <cat|dog> to adopt again.` }
+      return {
+        text: `Cleared ${store.roster.length} pet${store.roster.length === 1 ? '' : 's'}. /pet add <cat|dog> to adopt again.`,
+      }
     }
     case 'list': {
       const lines = store.roster.map((pet, i) => `${i + 1}. ${pet.name} - ${pet.color} ${pet.species}`)
       const heading = store.roster.length
         ? `Your pets (${store.roster.length}/${MAX_PETS}):`
         : 'You have no pets yet. /pet add <cat|dog> [color] [name]'
-      return { text: [heading, ...lines, ...(store.hidden ? ['(hidden: /pet show to bring them back)'] : [])].join('\n') }
+      return {
+        text: [heading, ...lines, ...(store.hidden ? ['(hidden: /pet show to bring them back)'] : [])].join('\n'),
+      }
     }
     case 'hide': {
       if (store.hidden) return { text: 'The pets are already hidden. /pet show brings them back.' }
@@ -373,7 +394,9 @@ async function runPetCommand($: Engine, argsText: string): Promise<{ text: strin
       if (!store.hidden) return { text: 'The pets are already showing.' }
       await saveStore($, { ...store, hidden: false })
       return {
-        text: store.roster.length ? 'Pets are back!' : 'Pets are shown, but you have none yet. /pet add <cat|dog> [color] [name]',
+        text: store.roster.length
+          ? 'Pets are back!'
+          : 'Pets are shown, but you have none yet. /pet add <cat|dog> [color] [name]',
       }
     }
     case 'pat': {
@@ -405,19 +428,19 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('prompt.submit', ($, e, next) => {
+  on('prompt.submit', (_$, e, next) => {
     session.isClaudeWorking = true
     markUserActive()
     return next(e)
-  }).catch(($, e, next) => next(e))
+  }).catch((_$, e, next) => next(e))
 
-  on('turn.complete', ($, e, next) => {
+  on('turn.complete', (_$, e, next) => {
     session.isClaudeWorking = false
     markUserActive()
     return next(e)
   })
 
-  on('prompt.edit', ($, e, next) => {
+  on('prompt.edit', (_$, e, next) => {
     markUserActive()
     return next(e)
   })
@@ -447,7 +470,12 @@ export const register: Register = on => {
 
     return (
       <Box width={columns} height={BAND_ROWS}>
-        <Raster key={BAND_KEY} columns={columns} rows={BAND_ROWS} cells={composeBandCells() ?? renderBand(columns, [])} />
+        <Raster
+          key={BAND_KEY}
+          columns={columns}
+          rows={BAND_ROWS}
+          cells={composeBandCells() ?? renderBand(columns, [])}
+        />
       </Box>
     )
   })

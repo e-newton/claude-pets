@@ -4,13 +4,13 @@
 // Rows 0-2 of every frame are EMPTY: that headroom belongs to overlays (see render.ts).
 import { CAT_RUN, CAT_SIT, CAT_SLEEP, CAT_WALK } from './cat'
 import { DOG_RUN, DOG_SIT, DOG_SLEEP, DOG_WALK } from './dog'
-import { COLORS, PALETTES } from './palettes'
 import type { Palette } from './palettes'
-import { PIXEL_LEGEND, SPRITE_H, SPRITE_W, TRANSPARENT } from './pixel-art'
+import { COLORS, PALETTES } from './palettes'
 import type { Grid } from './pixel-art'
+import { PIXEL_LEGEND, SPRITE_H, SPRITE_W, TRANSPARENT } from './pixel-art'
 
-export { BAND_ROWS, SPRITE_H, SPRITE_W } from './pixel-art'
 export { COLORS } from './palettes'
+export { BAND_ROWS, SPRITE_H, SPRITE_W } from './pixel-art'
 
 export type Species = 'cat' | 'dog'
 export type Pose = 'walk' | 'run' | 'sit' | 'sleep'
@@ -49,7 +49,7 @@ const frameCache = new Map<string, readonly Frame[]>()
 /** The frames of a pose, painted in `color`. An unknown color falls back to the species' first. */
 export function getFrames(species: Species, color: string, pose: Pose): readonly Frame[] {
   const palettes = PALETTES[species] ?? PALETTES.cat
-  const colorName = palettes[color] ? color : COLORS[species]?.[0] ?? 'orange'
+  const colorName = palettes[color] ? color : (COLORS[species]?.[0] ?? 'orange')
   const cacheKey = `${species}/${colorName}/${pose}`
   let frames = frameCache.get(cacheKey)
   if (!frames) {

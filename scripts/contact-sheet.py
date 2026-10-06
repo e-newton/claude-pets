@@ -15,6 +15,7 @@ exactly what the terminal gets, overlays included.
 
 Needs node and `npx -y -p typescript tsc` (no PIL: the PNG is written by hand).
 """
+
 import json
 import os
 import struct
@@ -34,8 +35,8 @@ SPRITE_WIDTH = 20  # mirrors SPRITE_W in the TS; the cell slot is wider to leave
 SPRITE_HEIGHT = 16  # mirrors SPRITE_H
 CELL_WIDTH = 26 * SCALE  # one sprite slot: SPRITE_WIDTH plus padding for overlays
 CELL_HEIGHT = SPRITE_HEIGHT * SCALE + SCALE
-DARK_BACKGROUND = (0x1d, 0x1e, 0x24)
-LIGHT_BACKGROUND = (0xf1, 0xf1, 0xee)
+DARK_BACKGROUND = (0x1D, 0x1E, 0x24)
+LIGHT_BACKGROUND = (0xF1, 0xF1, 0xEE)
 
 # Node script run against the compiled TS: prints a JSON list of
 # {label, cells: [pixel grid, ...]}, where a pixel grid is a list of rows of
@@ -90,10 +91,26 @@ def dump_sprite_cells():
     """Compile the TS renderer and return its cells as a list of {label, cells}."""
     build_dir = tempfile.mkdtemp()
     subprocess.run(
-        ['npx', '-y', '-p', 'typescript', 'tsc', '--module', 'commonjs', '--target', 'es2022',
-         '--skipLibCheck', '--strict', '--outDir', build_dir,
-         os.path.join(HOOKS_DIR, 'sprites.ts'), os.path.join(HOOKS_DIR, 'render.ts')],
-        check=True, cwd=ROOT)
+        [
+            'npx',
+            '-y',
+            '-p',
+            'typescript',
+            'tsc',
+            '--module',
+            'commonjs',
+            '--target',
+            'es2022',
+            '--skipLibCheck',
+            '--strict',
+            '--outDir',
+            build_dir,
+            os.path.join(HOOKS_DIR, 'sprites.ts'),
+            os.path.join(HOOKS_DIR, 'render.ts'),
+        ],
+        check=True,
+        cwd=ROOT,
+    )
     dump_path = os.path.join(build_dir, 'dump.js')
     with open(dump_path, 'w') as dump_file:
         dump_file.write(NODE_DUMP_SCRIPT)
@@ -120,7 +137,7 @@ def draw_sheet(sheet):
     for panel, background in enumerate([DARK_BACKGROUND, LIGHT_BACKGROUND]):
         for y in range(panel_height):
             start = (panel * panel_height + y) * width * 3
-            rgb[start:start + width * 3] = bytes(background) * width
+            rgb[start : start + width * 3] = bytes(background) * width
         for row_index, row in enumerate(sheet):
             for cell_index, cell in enumerate(row['cells']):
                 for y, pixel_row in enumerate(cell):
@@ -132,21 +149,25 @@ def draw_sheet(sheet):
                         top = panel * panel_height + SCALE // 2 + row_index * CELL_HEIGHT + y * SCALE
                         for scaled_y in range(SCALE):
                             start = ((top + scaled_y) * width + left) * 3
-                            rgb[start:start + SCALE * 3] = pixel * SCALE
+                            rgb[start : start + SCALE * 3] = pixel * SCALE
     return width, height, rgb
 
 
 def png_chunk(chunk_type, data):
     chunk = struct.pack('>I', len(data)) + chunk_type + data
-    return chunk + struct.pack('>I', zlib.crc32(chunk_type + data) & 0xffffffff)
+    return chunk + struct.pack('>I', zlib.crc32(chunk_type + data) & 0xFFFFFFFF)
 
 
 def encode_png(width, height, rgb):
     """A truecolor PNG; each scanline is prefixed with filter type 0 (none)."""
-    scanlines = b''.join(b'\0' + bytes(rgb[y * width * 3:(y + 1) * width * 3]) for y in range(height))
+    scanlines = b''.join(b'\0' + bytes(rgb[y * width * 3 : (y + 1) * width * 3]) for y in range(height))
     header = struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0)  # 8-bit RGB
-    return (b'\x89PNG\r\n\x1a\n' + png_chunk(b'IHDR', header)
-            + png_chunk(b'IDAT', zlib.compress(scanlines, 6)) + png_chunk(b'IEND', b''))
+    return (
+        b'\x89PNG\r\n\x1a\n'
+        + png_chunk(b'IHDR', header)
+        + png_chunk(b'IDAT', zlib.compress(scanlines, 6))
+        + png_chunk(b'IEND', b'')
+    )
 
 
 def main():

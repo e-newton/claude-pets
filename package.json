@@ -1,0 +1,17 @@
+{
+  "name": "claude-pets-dev",
+  "private": true,
+  "description": "Dev tooling for claude-pets (lint, format). The plugin itself has no dependencies.",
+  "scripts": {
+    "lint": "biome check .",
+    "fix": "biome check --write .",
+    "format": "biome format --write .",
+    "test": "claude plugin test plugins/pets",
+    "validate": "claude plugin validate --strict plugins/pets && claude plugin validate --strict .",
+    "typecheck": "tsc -p plugins/pets"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "typescript": "7.0.2"
+  }
+}

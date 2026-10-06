@@ -1,9 +1,8 @@
 import { expect, test } from 'claude-code/testing'
-
-import { HEART_TICKS, makeRng, maxX, pat, spawn, step } from '../hooks/sim'
 import type { Mode, PetRuntime } from '../hooks/sim'
-import { SPRITE_W } from '../hooks/sprites'
+import { HEART_TICKS, makeRng, maxX, pat, spawn, step } from '../hooks/sim'
 import type { Pose } from '../hooks/sprites'
+import { SPRITE_W } from '../hooks/sprites'
 
 const frameCounts: Record<Pose, number> = { walk: 4, run: 4, sit: 2, sleep: 2 }
 const WIDTH = 80
@@ -68,7 +67,8 @@ test('idle pets walk and sometimes sit', async () => {
   expect(states.some(pet => pet.pose === 'sit')).toBe(true)
   expect(states.every(pet => pet.pose === 'walk' || pet.pose === 'sit')).toBe(true)
   // Sitting stands still.
-  for (let i = 1; i < states.length; i++) if (states[i]!.pose === 'sit' && states[i - 1]!.pose === 'sit') expect(states[i]!.x).toBe(states[i - 1]!.x)
+  for (let i = 1; i < states.length; i++)
+    if (states[i]!.pose === 'sit' && states[i - 1]!.pose === 'sit') expect(states[i]!.x).toBe(states[i - 1]!.x)
 })
 
 test('working pets run, about one column per tick', async () => {
@@ -99,7 +99,11 @@ test('frame index cycles within the pose frame count', async () => {
   expect(new Set(states.map(pet => pet.frameIndex)).size).toBe(frameCounts.run)
   // A pose with no frames reported does not crash or go NaN.
   const rng = makeRng(1)
-  const pet = step(spawn(rng, WIDTH), { width: WIDTH, mode: 'idle', frameCounts: { walk: 0, run: 0, sit: 0, sleep: 0 } }, rng)
+  const pet = step(
+    spawn(rng, WIDTH),
+    { width: WIDTH, mode: 'idle', frameCounts: { walk: 0, run: 0, sit: 0, sleep: 0 } },
+    rng,
+  )
   expect(pet.frameIndex).toBe(0)
 })
 

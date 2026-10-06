@@ -1,9 +1,8 @@
-import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
-
-import type { PetsPet } from '../types'
+import { expect, mock, test } from 'claude-code/testing'
 import { renderBand } from '../hooks/render'
 import { BAND_ROWS, getFrames } from '../hooks/sprites'
+import type { PetsPet } from '../types'
 
 const TICK_MS = 125
 type Positions = Record<string, { x: number; dir: number }>
@@ -12,7 +11,9 @@ const ROSTER: PetsPet[] = [{ id: 'a', species: 'cat', color: 'gray', name: 'Tom'
 /** An in-memory `$.store` the test can read back (`mock.store` has no read-back). */
 function memoryStore(on: On, entries: Record<string, unknown> = {}) {
   const data = new Map<string, unknown>(Object.entries(entries))
-  on('store.get', (_$, e) => ({ value: data.get(e.key) === undefined ? undefined : JSON.parse(JSON.stringify(data.get(e.key))) }))
+  on('store.get', (_$, e) => ({
+    value: data.get(e.key) === undefined ? undefined : JSON.parse(JSON.stringify(data.get(e.key))),
+  }))
   on('store.set', (_$, e) => {
     data.set(e.key, JSON.parse(JSON.stringify(e.value)))
     return { value: undefined }
@@ -33,7 +34,10 @@ function memoryState(on: On, seed: Record<string, unknown> = {}) {
   const values = new Map<string, { value: unknown; version: number }>(
     Object.entries(seed).map(([key, value]) => [key, { value, version: 1 }]),
   )
-  on('state.get', (_$, e) => ({ value: { value: values.get(e.key)?.value, version: values.get(e.key)?.version ?? 0 } }) as never)
+  on(
+    'state.get',
+    (_$, e) => ({ value: { value: values.get(e.key)?.value, version: values.get(e.key)?.version ?? 0 } }) as never,
+  )
   on('state.set', (_$, e) => {
     const version = (values.get(e.key)?.version ?? 0) + 1
     values.set(e.key, { value: e.value, version })
@@ -62,7 +66,13 @@ const bandProps = (overrides: Record<string, unknown> = {}) => ({
 })
 
 const mountBand = ($: any, props = bandProps()) =>
-  $.ui.mount({ plugin: 'pets', surface: 'terminal', component: 'AbovePrompt', props, requestId: `band-${++nextRequestId}` })
+  $.ui.mount({
+    plugin: 'pets',
+    surface: 'terminal',
+    component: 'AbovePrompt',
+    props,
+    requestId: `band-${++nextRequestId}`,
+  })
 
 /** Runs `/pet <args>` and returns the reply text. */
 const petCommand = async ($: any, args = '') => (await $.command.run({ command: 'pet', args })).text as string

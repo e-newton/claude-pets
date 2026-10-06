@@ -1,8 +1,8 @@
 import { expect, test } from 'claude-code/testing'
 
-import { DEFAULT_COLOR, base64, decodeCells, mirror, renderBand } from '../hooks/render'
-import { BAND_ROWS, COLORS, SPRITE_H, SPRITE_W, getFrames, getGrids } from '../hooks/sprites'
+import { base64, DEFAULT_COLOR, decodeCells, mirror, renderBand } from '../hooks/render'
 import type { Frame, Pose, Species } from '../hooks/sprites'
+import { BAND_ROWS, COLORS, getFrames, getGrids, SPRITE_H, SPRITE_W } from '../hooks/sprites'
 
 const POSES: Pose[] = ['walk', 'run', 'sit', 'sleep']
 const SPECIES: Species[] = ['cat', 'dog']
