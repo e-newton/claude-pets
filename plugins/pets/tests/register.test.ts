@@ -117,6 +117,34 @@ test('add validates species, color, names and the cap of 6', async ($, on) => {
   expect(new Set(roster.map(p => p.name)).size).toBe(6)
 })
 
+test('rename changes a pet name and persists it', async ($, on) => {
+  const store = memoryStore(on, { roster: ROSTER })
+  mock.clock(on)
+  expect(await petCommand($, 'rename tom Biscuit')).toBe('Tom is now called Biscuit.')
+  expect(store.get('roster')).toEqual([{ id: 'a', species: 'cat', color: 'gray', name: 'Biscuit' }])
+  expect(await petCommand($, 'list')).toMatch(/1\. Biscuit - gray cat/)
+  expect(await petCommand($, 'rename Biscuit BISCUIT')).toMatch(/now called BISCUIT/)
+})
+
+test('rename handles multi-word old and new names', async ($, on) => {
+  const store = memoryStore(on, { roster: [{ id: 'a', species: 'cat', color: 'gray', name: 'Pixel Dust' }] })
+  mock.clock(on)
+  expect(await petCommand($, 'rename pixel dust Sir Fluffington')).toBe('Pixel Dust is now called Sir Fluffington.')
+  expect((store.get('roster') as PetsPet[]).map(p => p.name)).toEqual(['Sir Fluffington'])
+})
+
+test('rename explains unknown pets, missing new names and duplicate names', async ($, on) => {
+  const store = memoryStore(on, {
+    roster: [ROSTER[0]!, { id: 'b', species: 'dog', color: 'golden', name: 'Rex' }],
+  })
+  mock.clock(on)
+  expect(await petCommand($, 'rename')).toMatch(/Rename which pet\?.*Tom, Rex/)
+  expect(await petCommand($, 'rename nobody Fido')).toMatch(/No pet named "nobody Fido".*Tom, Rex/)
+  expect(await petCommand($, 'rename Tom')).toMatch(/What should Tom be called/)
+  expect(await petCommand($, 'rename Tom rex')).toMatch(/already have a pet named Rex/)
+  expect((store.get('roster') as PetsPet[]).map(p => p.name)).toEqual(['Tom', 'Rex'])
+})
+
 test('hide and show persist the hidden flag', async ($, on) => {
   const store = memoryStore(on, { roster: ROSTER })
   mock.clock(on)

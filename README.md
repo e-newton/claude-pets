@@ -21,6 +21,7 @@ You start with one cat. The pets live in an 8-row band above the prompt, in the 
 | --- | --- |
 | `/pet add <cat\|dog> [color] [name]` | Adopt a pet. Color and name are random if you leave them out. Up to 6 pets. |
 | `/pet remove <name>` | Remove a pet. |
+| `/pet rename <name> <new name>` | Give a pet a new name. |
 | `/pet clear` | Remove all of them. |
 | `/pet list` | List your pets. |
 | `/pet pat [name]` | Pat a pet and a heart pops up. |

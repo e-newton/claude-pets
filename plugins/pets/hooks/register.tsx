@@ -34,6 +34,7 @@ const USAGE_TEXT = [
   'Usage: /pet <command>',
   '  add <cat|dog> [color] [name]   adopt a pet (max 6)',
   '  remove <name>                  say goodbye to a pet',
+  '  rename <name> <new name>       give a pet a new name',
   '  clear                          remove every pet',
   '  list                           show your pets',
   '  hide | show                    hide or show the band',
@@ -307,11 +308,23 @@ async function ensureCommandRegistered($: Engine) {
     await $.command.register({
       name: 'pet',
       description: 'Cats and dogs that wander above your prompt',
-      argumentHint: 'add|remove|clear|list|hide|show|pat',
+      argumentHint: 'add|remove|rename|clear|list|hide|show|pat',
     })
   } catch {
     session.isCommandRegistered = false
   }
+}
+
+/**
+ * Splits `rename` arguments into the pet being renamed and the new name's words. Pet names can contain
+ * spaces, so this takes the longest leading run of words that names an existing pet.
+ */
+function splitRenameArgs<Pet>(args: string[], findPet: (name: string) => Pet | undefined) {
+  for (let currentNameWordCount = args.length; currentNameWordCount >= 1; currentNameWordCount--) {
+    const pet = findPet(args.slice(0, currentNameWordCount).join(' '))
+    if (pet) return { pet, newNameWords: args.slice(currentNameWordCount) }
+  }
+  return { pet: undefined, newNameWords: args }
 }
 
 /** Runs `/pet <argsText>` and returns the text to show. */
@@ -368,6 +381,24 @@ async function runPetCommand($: Engine, argsText: string): Promise<{ text: strin
         }
       await saveStore($, { ...store, roster: store.roster.filter(other => other.id !== pet.id) })
       return { text: `Goodbye, ${pet.name}. They will be missed.` }
+    }
+    case 'rename': {
+      if (args.length === 0 || store.roster.length === 0)
+        return {
+          text: `Rename which pet? /pet rename <name> <new name>${store.roster.length ? ` (${rosterNames()})` : ''}`,
+        }
+      const { pet, newNameWords } = splitRenameArgs(args, findPet)
+      if (!pet) return { text: `No pet named "${args.join(' ')}". Your pets: ${rosterNames()}.` }
+      const newName = newNameWords.join(' ').slice(0, MAX_PET_NAME_LENGTH).trim()
+      if (!newName) return { text: `What should ${pet.name} be called? /pet rename ${pet.name} <new name>` }
+      const sameName = findPet(newName)
+      if (sameName && sameName.id !== pet.id)
+        return { text: `You already have a pet named ${sameName.name}. Pick another name.` }
+      await saveStore($, {
+        ...store,
+        roster: store.roster.map(other => (other.id === pet.id ? { ...other, name: newName } : other)),
+      })
+      return { text: `${pet.name} is now called ${newName}.` }
     }
     case 'clear': {
       if (store.roster.length === 0) return { text: 'You have no pets to clear.' }
