@@ -16,15 +16,19 @@ export type Overlay = 'heart' | 'zzz' | null
 export type Placed = { frame: Frame; x: number; facingLeft: boolean; overlay: Overlay }
 
 export const DEFAULT_COLOR = 0x01000000
-export const HEART_COLOR = 0xff4d6d
+export const HEART_COLOR = 0xe8344f
+export const HEART_SHINE = 0xffb0bd
 export const Z_COLOR = 0xa9cbff
 
 const NONE = -1
 
-// Overlay bitmaps, in the sprite's rightward orientation. '#' = lit.
-const HEART = ['.#.#.', '#####', '.###.']
-const HEART_TIP = '..#..' // row 3, only drawn if the sprite leaves that spot empty
-const ZZZ = ['###', '.#.', '###'] // a small "z"; width 3, height 3
+// Overlay bitmaps in the sprite's rightward orientation. '#' = main color,
+// 'h' = highlight. Every sprite frame leaves its top 3 pixel rows empty, so the
+// heart's body and the z live in that headroom; the heart's single tip pixel
+// (row 3) is only drawn where the sprite leaves it free.
+const HEART = ['.#.#.', '#h###', '.###.', '..#..']
+const HEART_COLORS: { [k: string]: number } = { '#': HEART_COLOR, h: HEART_SHINE }
+const Z = ['###', '.#.', '###']
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 
@@ -69,22 +73,19 @@ export function mirror(frame: Frame): Frame {
 }
 
 /**
- * Where an overlay of `w` x 3 sits in the sprite box (post-mirroring): the empty
- * window in the top three pixel rows closest to the head (front). Falls back to
- * hovering over the back if the art leaves no room.
+ * Where an overlay `w` px wide sits in the sprite box (post-mirroring): above the
+ * head (the front: right end, or left end when mirrored). `tip` is an optional
+ * column offset in row 3 that must be free of sprite pixels; the dx nearest the
+ * head where that holds is chosen.
  */
-function overlayX(frame: Frame, facingLeft: boolean, w: number): number {
-  const free = (dx: number) => {
-    for (let y = 0; y < 3; y++) for (let x = dx; x < dx + w; x++) if (frame[y]?.[x] != null) return false
-    return true
-  }
+function overlayX(frame: Frame, facingLeft: boolean, w: number, tip?: number): number {
   const max = SPRITE_W - w
-  if (facingLeft) {
-    for (let dx = 0; dx <= max; dx++) if (free(dx)) return dx
-    return 3
+  const want = facingLeft ? 1 : 14 - w + 1
+  const ok = (dx: number) => tip === undefined || frame[3]?.[dx + tip] == null
+  for (let d = 0; d <= SPRITE_W; d++) {
+    for (const dx of [want - d, want + d]) if (dx >= 0 && dx <= max && ok(dx)) return dx
   }
-  for (let dx = max; dx >= 0; dx--) if (free(dx)) return dx
-  return 3
+  return Math.min(max, Math.max(0, want))
 }
 
 export function renderBand(columns: number, pets: readonly Placed[]): string {
@@ -108,17 +109,17 @@ export function renderBand(columns: number, pets: readonly Placed[]): string {
       }
     }
     if (pet.overlay === 'heart') {
-      const dx = overlayX(frame, pet.facingLeft, 5)
+      const dx = overlayX(frame, pet.facingLeft, 5, 2)
       HEART.forEach((line, y) => {
-        for (let x = 0; x < 5; x++) if (line[x] === '#') put(x0 + dx + x, y, HEART_COLOR)
+        for (let x = 0; x < 5; x++) {
+          const c = HEART_COLORS[line[x]!]
+          if (c !== undefined && frame[y]?.[dx + x] == null) put(x0 + dx + x, y, c)
+        }
       })
-      for (let x = 0; x < 5; x++) {
-        if (HEART_TIP[x] === '#' && frame[3]?.[dx + x] == null) put(x0 + dx + x, 3, HEART_COLOR)
-      }
     } else if (pet.overlay === 'zzz') {
       const dx = overlayX(frame, pet.facingLeft, 3)
-      ZZZ.forEach((line, y) => {
-        for (let x = 0; x < 3; x++) if (line[x] === '#') put(x0 + dx + x, y, Z_COLOR)
+      Z.forEach((line, y) => {
+        for (let x = 0; x < 3; x++) if (line[x] === '#' && frame[y]?.[dx + x] == null) put(x0 + dx + x, y, Z_COLOR)
       })
     }
   }

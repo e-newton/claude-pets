@@ -2,6 +2,7 @@ import { expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
 import type { PetsPet } from '../types'
+import { BAND_ROWS } from '../hooks/sprites'
 
 const ROSTER: PetsPet[] = [{ id: 'a', species: 'cat', color: 'gray', name: 'Tom' }]
 
@@ -117,13 +118,13 @@ test('the stored roster survives a fresh load', async ($, on) => {
   expect(await pet($, 'list')).toMatch(/Tom[\s\S]*Rex[\s\S]*hidden/)
 })
 
-test('the band draws a keyed Raster, sized to bodyColumns x 4', async ($, on) => {
+test('the band draws a keyed Raster, sized to bodyColumns x BAND_ROWS', async ($, on) => {
   const store = memoryStore(on, { roster: ROSTER })
   mock.clock(on)
   const ui = await mount($)
   const raster = await ui.find({ type: 'Raster', key: 'band' })
   expect(raster?.props.columns).toBe(80)
-  expect(raster?.props.rows).toBe(4)
+  expect(raster?.props.rows).toBe(BAND_ROWS)
   const narrow = await mount($, band({ bodyColumns: 30 }))
   expect((await narrow.find({ type: 'Raster' }))?.props.columns).toBe(30)
   const tiny = await mount($, band({ bodyColumns: 6 }))
@@ -155,7 +156,7 @@ test('the timer blits while visible and stops when hidden', async ($, on) => {
   const ui = await mount($)
   await clock.advance(125 * 8)
   expect(blits.length).toBe(8)
-  expect(blits[0]).toMatchObject({ key: 'band', columns: 80, rows: 4 })
+  expect(blits[0]).toMatchObject({ key: 'band', columns: 80, rows: BAND_ROWS })
   const first = blits[0].cells
   await clock.advance(125 * 40)
   expect(blits.some(b => b.cells !== first)).toBe(true)

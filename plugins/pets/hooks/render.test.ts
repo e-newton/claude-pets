@@ -70,26 +70,26 @@ test('half-block encoding of a known pixel pair', () => {
 test('facingLeft mirrors horizontally', () => {
   const f = blank()
   f[0]![0] = RED
-  const right = decodeCells(renderBand(12, [{ frame: f, x: 0, facingLeft: false, overlay: null }]))
-  const left = decodeCells(renderBand(12, [{ frame: f, x: 0, facingLeft: true, overlay: null }]))
+  const right = decodeCells(renderBand(SPRITE_W, [{ frame: f, x: 0, facingLeft: false, overlay: null }]))
+  const left = decodeCells(renderBand(SPRITE_W, [{ frame: f, x: 0, facingLeft: true, overlay: null }]))
   expect(right[0]![1]).toBe(RED)
-  expect(left[11]![1]).toBe(RED)
+  expect(left[SPRITE_W - 1]![1]).toBe(RED)
   expect(left[0]![0]).toBe(0x20)
-  expect(mirror(f)[0]![11]).toBe(RED)
+  expect(mirror(f)[0]![SPRITE_W - 1]).toBe(RED)
 })
 
 test('clips at both edges', () => {
   const f = blank()
   for (let y = 0; y < SPRITE_H; y++) for (let x = 0; x < SPRITE_W; x++) f[y]![x] = RED
-  const cols = 20
+  const cols = SPRITE_W + 8
   const at = (x: number) => decodeCells(renderBand(cols, [{ frame: f, x, facingLeft: false, overlay: null }]))
   const lit = (cells: ReturnType<typeof decodeCells>, r: number) =>
     cells.slice(r * cols, (r + 1) * cols).filter(c => c[0] !== 0x20).length
-  expect(lit(at(-4), 0)).toBe(8)
-  expect(lit(at(-12), 0)).toBe(0)
+  expect(lit(at(-4), 0)).toBe(SPRITE_W - 4)
+  expect(lit(at(-SPRITE_W), 0)).toBe(0)
   expect(lit(at(-30), 0)).toBe(0)
-  expect(lit(at(14), 0)).toBe(6)
-  expect(lit(at(20), 0)).toBe(0)
+  expect(lit(at(cols - 6), 0)).toBe(6)
+  expect(lit(at(cols), 0)).toBe(0)
   expect(at(-4).length).toBe(cols * BAND_ROWS)
 })
 
@@ -116,4 +116,30 @@ test('overlays draw something, inside the band, mid-band', () => {
         }
       }
     }
+})
+
+test('top 3 pixel rows of every frame are empty (overlay headroom)', () => {
+  for (const sp of SPECIES)
+    for (const color of COLORS[sp])
+      for (const pose of POSES)
+        for (const f of getFrames(sp, color, pose))
+          for (let y = 0; y < 3; y++) expect(f[y]!.every(p => p === null)).toBe(true)
+})
+
+test('overlays never overwrite sprite pixels', () => {
+  for (const sp of SPECIES)
+    for (const pose of POSES)
+      for (const frame of getFrames(sp, 'brown', pose))
+        for (const facingLeft of [false, true]) {
+          const W = SPRITE_W + 4
+          const px = (overlay: 'heart' | 'zzz' | null) =>
+            decodeCells(renderBand(W, [{ frame, x: 2, facingLeft, overlay }]))
+          const base = px(null)
+          for (const overlay of ['heart', 'zzz'] as const) {
+            const withO = px(overlay)
+            // Cells covering sprite pixels (rows >= 3) must be unchanged except cell row 1 (px 2-3), which may gain only its top-half.
+            for (let r = 2; r < BAND_ROWS; r++)
+              for (let c = 0; c < W; c++) expect(withO[r * W + c]).toEqual(base[r * W + c])
+          }
+        }
 })

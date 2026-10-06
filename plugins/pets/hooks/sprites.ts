@@ -1,12 +1,12 @@
 // Pixel data + palettes for claude-pets. Pure: no `$`, no DOM, no Node.
-// Art is authored as string grids (12 x 8, facing RIGHT) and converted to
+// Art is authored as string grids (16 x 12, facing RIGHT) and converted to
 // Frames (0xRRGGBB | null) on first use.
 
 export type Species = 'cat' | 'dog'
 export type Pose = 'walk' | 'run' | 'sit' | 'sleep'
-export const SPRITE_W = 12
-export const SPRITE_H = 8
-export const BAND_ROWS = 4
+export const SPRITE_W = 16
+export const SPRITE_H = 12
+export const BAND_ROWS = 6
 export const COLORS: { cat: readonly string[]; dog: readonly string[] } = {
   cat: ['orange', 'black', 'gray', 'white'],
   dog: ['brown', 'golden', 'black', 'white'],
@@ -15,175 +15,189 @@ export const COLORS: { cat: readonly string[]; dog: readonly string[] } = {
 /** A frame: SPRITE_H rows x SPRITE_W px, each 0xRRGGBB or null (transparent). Faces RIGHT. */
 export type Frame = ReadonlyArray<ReadonlyArray<number | null>>
 
-// Palette keys: . transparent, o outline, b body, l light (belly/muzzle/highlight),
-// d dark (dog ear / far legs), e eye, n nose, p pink (tongue / inner ear)
+// Palette keys: . transparent, o outline, b body, l light (muzzle / chest / paws),
+// d dark shade (belly, far legs, dog ear), e eye, w eye highlight, n nose,
+// p pink (inner ear / tongue)
+// Rows 0-2 of every frame are EMPTY: that headroom belongs to overlays.
 type Palette = { [k: string]: number }
 type Grid = readonly string[]
 
 const CAT_PALETTES: { [color: string]: Palette } = {
-  orange: { o: 0x7a3a12, b: 0xf0922c, l: 0xffd59a, d: 0xc86a1a, e: 0x1a1a22, n: 0xe8607e, p: 0xf4a0a8 },
-  black: { o: 0x8d93a6, b: 0x2e3038, l: 0x50535e, d: 0x1c1d22, e: 0xf2e04a, n: 0xe8607e, p: 0xb86a7c },
-  gray: { o: 0x434955, b: 0x9aa1ad, l: 0xd0d5dd, d: 0x757c89, e: 0x1a1a22, n: 0xe8607e, p: 0xf0a8b4 },
-  white: { o: 0x7f8494, b: 0xf6f6f8, l: 0xffffff, d: 0xd2d4dc, e: 0x1a1a22, n: 0xf0708c, p: 0xf8b4c0 },
+  orange: { o: 0x7a3a12, b: 0xf0922c, l: 0xffd59a, d: 0xc86a1a, e: 0x1a1a22, w: 0xffffff, n: 0xe8607e, p: 0xf4a0a8 },
+  black: { o: 0x8d93a6, b: 0x2e3038, l: 0x50535e, d: 0x1f2026, e: 0xf2e04a, w: 0xffffff, n: 0xe8607e, p: 0xb86a7c },
+  gray: { o: 0x434955, b: 0x9aa1ad, l: 0xd0d5dd, d: 0x757c89, e: 0x1a1a22, w: 0xffffff, n: 0xe8607e, p: 0xf0a8b4 },
+  white: { o: 0x7f8494, b: 0xf6f6f8, l: 0xffffff, d: 0xd2d4dc, e: 0x23305a, w: 0xffffff, n: 0xf0708c, p: 0xf8b4c0 },
 }
 
 const DOG_PALETTES: { [color: string]: Palette } = {
-  brown: { o: 0x40240e, b: 0xa06c3c, l: 0xe0b684, d: 0x6a4020, e: 0x15151c, n: 0x15151c, p: 0xff6f86 },
-  golden: { o: 0x7e4e10, b: 0xe8b24c, l: 0xfae2a4, d: 0xb67c20, e: 0x15151c, n: 0x15151c, p: 0xff6f86 },
-  black: { o: 0x8d93a6, b: 0x32343b, l: 0x585b66, d: 0x1a1b20, e: 0xf2f2f2, n: 0xc8ccd8, p: 0xff6f86 },
-  white: { o: 0x7f8494, b: 0xf4f4f6, l: 0xffffff, d: 0xc4c6d0, e: 0x15151c, n: 0x15151c, p: 0xff6f86 },
+  brown: { o: 0x40240e, b: 0xa06c3c, l: 0xe0b684, d: 0x6a4020, e: 0x15151c, w: 0xffffff, n: 0x15151c, p: 0xff6f86 },
+  golden: { o: 0x7e4e10, b: 0xe8b24c, l: 0xfae2a4, d: 0xb67c20, e: 0x15151c, w: 0xffffff, n: 0x15151c, p: 0xff6f86 },
+  black: { o: 0x8d93a6, b: 0x32343b, l: 0x585b66, d: 0x1c1d22, e: 0xe8b030, w: 0xfff2b0, n: 0xc8ccd8, p: 0xff6f86 },
+  white: { o: 0x7f8494, b: 0xf4f4f6, l: 0xffffff, d: 0xc4c6d0, e: 0x15151c, w: 0xffffff, n: 0x15151c, p: 0xff6f86 },
 }
 
-const T = (torso: Grid, legs: Grid): Grid => [...torso, ...legs]
+/** Frames are authored as the 9 rows the art may use; rows 0-2 stay empty (overlay headroom). */
+const HEADROOM: Grid = ['................', '................', '................']
+const A = (rows: Grid): Grid => [...HEADROOM, ...rows]
+const T = (torso: Grid, legs: Grid): Grid => A([...torso, ...legs])
 
 // ---------------------------------------------------------------------------
-// Cat: pointy ears, tail up. Rows 0-2 above the back stay empty (cols 2-6)
-// so overlays (heart / zzz) have room.
+// Cat: pointy ears with pink insides, short muzzle, tail curved up.
+// Torso = pixel rows 3-8, legs = rows 9-11. Far legs are the dark shade 'd'.
 // ---------------------------------------------------------------------------
 const CAT_TORSO: Grid = [
-  '.......o...o',
-  'o......obbbo',
-  'ob.....obebo',
-  'ob.ooooobbbn',
-  'obobbbbbbbbo',
-  '.obbllllbbo.',
+  '.oo.......o...o.',
+  'obo......opo.opo',
+  'obo......obbbbbo',
+  'obo.oooooobbbwbo',
+  '.obbbbbbbbbbbebn',
+  '..oddddddddlllo.',
 ]
 const CAT_WALK: Grid[] = [
-  T(CAT_TORSO, ['..ob..ob.ob.', '..oo..oo.oo.']),
-  T(CAT_TORSO, ['..obob..obob', '..oo.o..oo.o']),
-  T(CAT_TORSO, ['..ob..ob.ob.', '..oo..oo.oo.']),
-  T(CAT_TORSO, ['...obo.obo..', '...ooo.ooo..']),
+  T(CAT_TORSO, ['..ob..odod..ob..', '..ob...oooo.ob..', '..oo........oo..']),
+  T(CAT_TORSO, ['....obododob....', '.....oododob....', '......oooooo....']),
+  T(CAT_TORSO, ['...odob..obod...', '...odob..obod...', '...oooo..oooo...']),
+  T(CAT_TORSO, ['....obododob....', '....obodod.oo...', '....oooooo......']),
 ]
-// Run: body stretched, tail streaming back, legs reaching out.
+// Run: body stretched low, tail streaming straight back, legs reaching out.
 const CAT_RUN_TORSO: Grid = [
-  '.......o...o',
-  '.......obbbo',
-  'oo.....obebo',
-  '.booooooobbn',
-  '..bbbbbbbbbo',
-  '..obllllbbo.',
+  '................',
+  '..........o...o.',
+  '.........opo.opo',
+  '.........obbbbbo',
+  'oo.ooooooobbbwbo',
+  'bbbbbbbbbbbbbebn',
 ]
+const CAT_RUN_BODY: Grid = ['oo.odddddddlllo.']
 const CAT_RUN: Grid[] = [
-  T(CAT_RUN_TORSO, ['.ob.......obo', '.oo......oo..']),
-  T(CAT_RUN_TORSO, ['..oboo.oob...', '...ooo.oo....']),
+  A([...CAT_RUN_TORSO.slice(1), ...CAT_RUN_BODY, '....obod.odob...', '...obod...odob..', '..oooo.....oooo.']),
+  A([...CAT_RUN_TORSO.slice(1), ...CAT_RUN_BODY, '.....oboodob....', '.....oboodob....', '.....ooooooo....']),
 ]
 const CAT_SIT: Grid[] = [
-  [
-    '......o...o.',
-    '......obbbbo',
-    '......obebo.',
-    '.....ooobbn.',
-    '....obbbbbo.',
-    '...obbllbbo.',
-    '..obbbllbbo.',
-    '.ooobbbbbboo',
-  ],
-  [
-    '......o...o.',
-    '......obbbbo',
-    '......obebo.',
-    '.....ooobbn.',
-    '....obbbbbo.',
-    '...obbllbbo.',
-    '.o.obbllbbo.',
-    'obooobbbbboo',
-  ],
+  A([
+    '..........o...o.',
+    '.........opo.opo',
+    '.........obbbbbo',
+    '.........obbbwbo',
+    '.........obbbebn',
+    '......obbbblllo.',
+    '.....obbbbbllbo.',
+    '.ob.obbbbbbllbo.',
+    '.oooobdddddbllo.',
+  ]),
+  A([
+    '..........o...o.',
+    '.........opo.opo',
+    '.........obbbbbo',
+    '.........obbbwbo',
+    '.........obbbebn',
+    '......obbbblllo.',
+    '.ob..obbbbbllbo.',
+    '.oo.obbbbbbllbo.',
+    '.oooobdddddbllo.',
+  ]),
 ]
 const CAT_SLEEP: Grid[] = [
-  [
-    '............',
-    '............',
-    '............',
-    '........o.o.',
-    '..oooooooooo',
-    '.obbbbbbbebo',
-    'obbbllllbbbn',
-    '.oooooooooo.',
-  ],
-  [
-    '............',
-    '............',
-    '............',
-    '........o.o.',
-    '...ooooooooo',
-    '.oobbbbbbebo',
-    'obbbllllbbbn',
-    '.oooooooooo.',
-  ],
+  A([
+    '................',
+    '................',
+    '................',
+    '................',
+    '..........o...o.',
+    '...ooooooopbbbpo',
+    '..obbbbbbbbbeebo',
+    '.obbbbbbdddbllbn',
+    '..ooooooooooooo.',
+  ]),
+  A([
+    '................',
+    '................',
+    '................',
+    '................',
+    '....ooooo.o...o.',
+    '...obbbbbopbbbpo',
+    '..obbbbbbbbbeebo',
+    '.obbbbbbdddbllbn',
+    '..ooooooooooooo.',
+  ]),
 ]
 
 // ---------------------------------------------------------------------------
-// Dog: floppy ear, longer snout, wagging tail.
+// Dog: floppy dark ear, long snout with a dark nose, tail that wags up and down.
 // ---------------------------------------------------------------------------
 const DOG_TORSO_UP: Grid = [
-  '.......ooo..',
-  'o.....obbbo.',
-  'oo....odbebo',
-  'ob.oooodbbln',
-  'obobbbbdbbbo',
-  '.obbllllbbo.',
+  '.oo.............',
+  'obo......oooo...',
+  'obo.....oddbbbo.',
+  'obo.oooooddbwbbo',
+  '.obbbbbbbddbelln',
+  '..odddddddlllllo',
 ]
 const DOG_TORSO_DOWN: Grid = [
-  '.......ooo..',
-  '......obbbo.',
-  '......odbebo',
-  '..ooooodbbln',
-  'oobbbbbdbbbo',
-  'oobbllllbbo.',
+  '................',
+  '.........oooo...',
+  '........oddbbbo.',
+  '....oooooddbwbbo',
+  'oobbbbbbbddbelln',
+  'obodddddddlllllo',
 ]
 const DOG_WALK: Grid[] = [
-  T(DOG_TORSO_UP, ['..ob..ob.ob.', '..oo..oo.oo.']),
-  T(DOG_TORSO_DOWN, ['..obob..obob', '..oo.o..oo.o']),
-  T(DOG_TORSO_UP, ['..ob..ob.ob.', '..oo..oo.oo.']),
-  T(DOG_TORSO_DOWN, ['...obo.obo..', '...ooo.ooo..']),
+  T(DOG_TORSO_UP, ['..ob..odod..ob..', '..ob...oooo.ob..', '..oo........oo..']),
+  T(DOG_TORSO_DOWN, ['....obododob....', '.....oododob....', '......oooooo....']),
+  T(DOG_TORSO_UP, ['...odob..obod...', '...odob..obod...', '...oooo..oooo...']),
+  T(DOG_TORSO_DOWN, ['....obododob....', '....obodod.oo...', '....oooooo......']),
 ]
 const DOG_RUN: Grid[] = [
-  T(DOG_TORSO_UP, ['.ob......obo', '.oo.....oo..']),
-  T(DOG_TORSO_DOWN, ['..oboo.oob..', '...ooo.oo...']),
+  T(DOG_TORSO_UP, ['....obod.odob...', '...obod...odob..', '..oooo.....oooo.']),
+  T(DOG_TORSO_DOWN, ['.....oboodob....', '.....oboodob....', '.....ooooooo....']),
 ]
 const DOG_SIT: Grid[] = [
-  [
-    '......ooo...',
-    '.....obbboo.',
-    '.....dbebno.',
-    '.....dobbbn.',
-    '....obbbbo..',
-    '...obbllbo..',
-    '..obbbllbo..',
-    '.ooobbbbboo.',
-  ],
-  [
-    '......ooo...',
-    '.....obbboo.',
-    '.....dbebno.',
-    '.....dobbbn.',
-    '....obbbbo..',
-    '...obbllbo..',
-    '.o.obbllbo..',
-    'obooobbbboo.',
-  ],
+  A([
+    '.........oooo...',
+    '........oddbbbo.',
+    '........oddbwbbo',
+    '........oddbelln',
+    '.......oddbllllo',
+    '.....obbbbbbllo.',
+    '.ob.obbbbbbbllo.',
+    '.ob.obbbbbbbllo.',
+    '.oooobdddddbllo.',
+  ]),
+  A([
+    '.........oooo...',
+    '........oddbbbo.',
+    '........oddbwbbo',
+    '........oddbelln',
+    '.......oddbllllo',
+    '.....obbbbbbllo.',
+    '.....obbbbbbllo.',
+    '.oo.obbbbbbbllo.',
+    'oooooodddddbllo.',
+  ]),
 ]
 const DOG_SLEEP: Grid[] = [
-  [
-    '............',
-    '............',
-    '............',
-    '............',
-    '..ooooooooo.',
-    '.obbbbbbdbeo',
-    'obbbllllbbbn',
-    '.oooooooooo.',
-  ],
-  [
-    '............',
-    '............',
-    '............',
-    '............',
-    '...oooooooo.',
-    '.oobbbbbdbeo',
-    'obbbllllbbbn',
-    '.oooooooooo.',
-  ],
+  A([
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '...ooooooooooo..',
+    '..obbbbbbbdddebo',
+    '.obbbbbbbbdddlln',
+    '..ooooooooooooo.',
+  ]),
+  A([
+    '................',
+    '................',
+    '................',
+    '................',
+    '....oooooo......',
+    '...obbbbbboooo..',
+    '..obbbbbbbdddebo',
+    '.obbbbbbbbdddlln',
+    '..ooooooooooooo.',
+  ]),
 ]
 
 const GRIDS: { [sp in Species]: { [pose in Pose]: readonly Grid[] } } = {
