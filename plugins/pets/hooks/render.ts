@@ -141,13 +141,27 @@ export function renderBand(columns: number, pets: readonly Placed[]): string {
       const sw = Z_SMALL[0]!.length
       const bx = overlayX(frame, pet.facingLeft, bw)
       const sx = pet.facingLeft ? bx + bw + 1 : bx - sw - 1
+      const free = (bmp: string[], dx: number, y0: number) =>
+        dx >= 0 && dx + bmp[0]!.length <= SPRITE_W && y0 >= 0 &&
+        bmp.every((line, y) => [...line].every((ch, x) => ch !== '#' || frame[y0 + y]?.[dx + x] == null))
       const draw = (bmp: string[], dx: number, y0: number) =>
         bmp.forEach((line, y) => {
-          for (let x = 0; x < line.length; x++)
-            if (line[x] === '#' && frame[y0 + y]?.[dx + x] == null) put(x0 + dx + x, y0 + y, Z_COLOR)
+          for (let x = 0; x < line.length; x++) if (line[x] === '#' && frame[y0 + y]?.[dx + x] == null) put(x0 + dx + x, y0 + y, Z_COLOR)
         })
-      draw(Z_SMALL, sx, top - 5)
-      draw(Z_BIG, bx, top - 8)
+      // Both letters must render whole: the big Z rises above the head (pushed down, not clipped,
+      // when the head is tall); the small z takes the nearest spot where all its pixels are free.
+      const by = Math.max(0, top - 8)
+      let sy = Math.max(by + 1, top - 5)
+      let sdx = sx
+      search: for (let up = 0; up <= sy; up++)
+        for (const shift of [0, -1, 1, -2, 2])
+          if (free(Z_SMALL, sx + shift, sy - up) && (sx + shift + sw < bx || sx + shift > bx + bw)) {
+            sy -= up
+            sdx = sx + shift
+            break search
+          }
+      draw(Z_SMALL, sdx, sy)
+      draw(Z_BIG, bx, by)
     }
   }
 
