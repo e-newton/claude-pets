@@ -1,5 +1,5 @@
 import { test, expect } from 'claude-code/testing'
-import { BAND_ROWS, COLORS, SPRITE_H, SPRITE_W, getFrames } from './sprites'
+import { BAND_ROWS, COLORS, SPRITE_H, SPRITE_W, getFrames, getGrids } from './sprites'
 import type { Pose, Species } from './sprites'
 import { base64, decodeCells, DEFAULT_COLOR, mirror, renderBand } from './render'
 import type { Frame } from './render'
@@ -126,6 +126,12 @@ test('top 3 pixel rows of every frame are empty (overlay headroom)', () => {
           for (let y = 0; y < 3; y++) expect(f[y]!.every(p => p === null)).toBe(true)
 })
 
+function pixelAt(cells: ReturnType<typeof decodeCells>, W: number, x: number, y: number): number | null {
+  const [cp, fg, bg] = cells[(y >> 1) * W + x]!
+  const v = y % 2 === 0 ? (cp === 0x2580 ? fg : null) : cp === 0x2580 ? bg : cp === 0x2584 ? fg : null
+  return v === DEFAULT_COLOR ? null : v
+}
+
 test('overlays never overwrite sprite pixels', () => {
   for (const sp of SPECIES)
     for (const pose of POSES)
@@ -137,9 +143,20 @@ test('overlays never overwrite sprite pixels', () => {
           const base = px(null)
           for (const overlay of ['heart', 'zzz'] as const) {
             const withO = px(overlay)
-            // Cells covering sprite pixels (rows >= 3) must be unchanged except cell row 1 (px 2-3), which may gain only its top-half.
-            for (let r = 2; r < BAND_ROWS; r++)
-              for (let c = 0; c < W; c++) expect(withO[r * W + c]).toEqual(base[r * W + c])
+            for (let y = 0; y < SPRITE_H; y++)
+              for (let x = 0; x < W; x++) {
+                const b = pixelAt(base, W, x, y)
+                if (b !== null) expect(pixelAt(withO, W, x, y)).toBe(b)
+              }
           }
         }
+})
+
+test('every authored grid is SPRITE_H rows of SPRITE_W chars', () => {
+  for (const sp of SPECIES)
+    for (const pose of POSES)
+      for (const g of getGrids(sp, pose)) {
+        expect(g.length).toBe(SPRITE_H)
+        for (const row of g) expect(row.length).toBe(SPRITE_W)
+      }
 })

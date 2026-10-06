@@ -3,6 +3,7 @@
 overlays) on a dark and a light background, going through the real renderBand.
 
   python3 scripts/contact-sheet.py [out.png] [scale] [label-filter,...]   e.g. 'cat orange,dog brown'
+CELLS=0-3 selects cell columns (walk 0-3, run 4-5, sit 6-7, sleep 8-9, heart 10-11, zzz 12-13)
 
 Needs node and `npx -y -p typescript tsc` (no PIL: the PNG is written by hand).
 """
@@ -16,7 +17,8 @@ ONLY = sys.argv[3].split(',') if len(sys.argv) > 3 else None
 DUMP = r"""
 const { COLORS, getFrames } = require('./sprites')
 const { renderBand, decodeCells } = require('./render')
-const SW = 16, SH = 12, ROWS = 6, PAD = 2
+const { SPRITE_W: SW, SPRITE_H: SH, BAND_ROWS: ROWS } = require('./sprites')
+const PAD = 3
 function pixels(frame, facingLeft, overlay) {
   const cols = SW + PAD * 2
   const cells = decodeCells(renderBand(cols, [{ frame, x: PAD, facingLeft, overlay }]))
@@ -54,9 +56,16 @@ subprocess.run(['npx', '-y', '-p', 'typescript', 'tsc', '--module', 'commonjs', 
 open(os.path.join(tmp, 'dump.js'), 'w').write(DUMP)
 data = json.loads(subprocess.run(['node', os.path.join(tmp, 'dump.js')], check=True, capture_output=True, text=True).stdout)
 
+CELLS = os.environ.get('CELLS')  # e.g. '0-3' or '6,7,8': only these cell columns
+if CELLS:
+    keep = []
+    for part in CELLS.split(','):
+        a, _, b = part.partition('-')
+        keep += range(int(a), int(b or a) + 1)
+    for r in data: r['cells'] = [r['cells'][i] for i in keep]
 if ONLY: data = [r for r in data if r['label'] in ONLY]
 S = SCALE
-CW, CH = 20 * S, 12 * S + S
+CW, CH = 26 * S, 16 * S + S
 BGS = [(0x1d, 0x1e, 0x24), (0xf1, 0xf1, 0xee)]
 ncells = len(data[0]['cells'])
 W = ncells * CW + S

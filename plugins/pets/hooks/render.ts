@@ -24,11 +24,13 @@ const NONE = -1
 
 // Overlay bitmaps in the sprite's rightward orientation. '#' = main color,
 // 'h' = highlight. Every sprite frame leaves its top 3 pixel rows empty, so the
-// heart's body and the z live in that headroom; the heart's single tip pixel
-// (row 3) is only drawn where the sprite leaves it free.
+// heart's body lives in that headroom; its single tip pixel (row 3) is only drawn
+// where the sprite leaves it free.
 const HEART = ['.#.#.', '#h###', '.###.', '..#..']
 const HEART_COLORS: { [k: string]: number } = { '#': HEART_COLOR, h: HEART_SHINE }
-const Z = ['###', '.#.', '###']
+// A small z and a bigger Z, drawn rising up and to the right above the head.
+const Z_SMALL = ['###', '..#', '.#.', '###']
+const Z_BIG = ['#####', '...#.', '..#..', '.#...', '#####']
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 
@@ -72,20 +74,36 @@ export function mirror(frame: Frame): Frame {
   return frame.map(row => row.slice().reverse())
 }
 
+/** Column span of the head in a right-facing frame (the front quarter of the sprite). */
+const HEAD_X0 = 13
+const HEAD_X1 = SPRITE_W - 1
+
 /**
- * Where an overlay `w` px wide sits in the sprite box (post-mirroring): above the
- * head (the front: right end, or left end when mirrored). `tip` is an optional
+ * Where an overlay `w` px wide sits in the sprite box (post-mirroring): centered above
+ * the head (the front: right end, or left end when mirrored). `tip` is an optional
  * column offset in row 3 that must be free of sprite pixels; the dx nearest the
- * head where that holds is chosen.
+ * head center where that holds is chosen.
  */
 function overlayX(frame: Frame, facingLeft: boolean, w: number, tip?: number): number {
   const max = SPRITE_W - w
-  const want = facingLeft ? 1 : 14 - w + 1
+  const right = Math.round((HEAD_X0 + HEAD_X1 + 1) / 2 - w / 2)
+  const want = facingLeft ? SPRITE_W - w - right : right
   const ok = (dx: number) => tip === undefined || frame[3]?.[dx + tip] == null
   for (let d = 0; d <= SPRITE_W; d++) {
     for (const dx of [want - d, want + d]) if (dx >= 0 && dx <= max && ok(dx)) return dx
   }
   return Math.min(max, Math.max(0, want))
+}
+
+/** Width of the front strip scanned by `headTop` (narrower than the head so a curled body behind it is ignored). */
+const HEAD_TOP_W = 5
+
+/** Topmost lit pixel row over the head columns (post-mirroring); SPRITE_H when there is none. */
+function headTop(frame: Frame, facingLeft: boolean): number {
+  const x0 = facingLeft ? 0 : SPRITE_W - HEAD_TOP_W
+  const x1 = facingLeft ? HEAD_TOP_W - 1 : SPRITE_W - 1
+  for (let y = 0; y < SPRITE_H; y++) for (let x = x0; x <= x1; x++) if (frame[y]?.[x] != null) return y
+  return SPRITE_H
 }
 
 export function renderBand(columns: number, pets: readonly Placed[]): string {
@@ -117,10 +135,19 @@ export function renderBand(columns: number, pets: readonly Placed[]): string {
         }
       })
     } else if (pet.overlay === 'zzz') {
-      const dx = overlayX(frame, pet.facingLeft, 3)
-      Z.forEach((line, y) => {
-        for (let x = 0; x < 3; x++) if (line[x] === '#' && frame[y]?.[dx + x] == null) put(x0 + dx + x, y, Z_COLOR)
-      })
+      // Both letters stand on the head: the small z beside it, the big Z up and right.
+      const top = headTop(frame, pet.facingLeft)
+      const bw = Z_BIG[0]!.length
+      const sw = Z_SMALL[0]!.length
+      const bx = overlayX(frame, pet.facingLeft, bw)
+      const sx = pet.facingLeft ? bx + bw + 1 : bx - sw - 1
+      const draw = (bmp: string[], dx: number, y0: number) =>
+        bmp.forEach((line, y) => {
+          for (let x = 0; x < line.length; x++)
+            if (line[x] === '#' && frame[y0 + y]?.[dx + x] == null) put(x0 + dx + x, y0 + y, Z_COLOR)
+        })
+      draw(Z_SMALL, sx, top - 5)
+      draw(Z_BIG, bx, top - 8)
     }
   }
 
